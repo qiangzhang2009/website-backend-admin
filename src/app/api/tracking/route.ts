@@ -19,7 +19,25 @@ const mockTenants: Record<string, string> = {
   demo: 'tenant_002',
 }
 
+// 处理 CORS 预检请求
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
+
 export async function POST(request: NextRequest) {
+  // 添加 CORS 头
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  }
+
   try {
     const body = await request.json()
 
@@ -39,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // 验证必要字段
     if (!tenant_slug || !event_type || !timestamp) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders })
     }
 
     // 获取租户 ID
@@ -51,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!tenantId) {
-      return NextResponse.json({ error: 'Invalid tenant' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid tenant' }, { status: 400, headers: corsHeaders })
     }
 
     if (isDbConfigured) {
@@ -82,10 +100,10 @@ export async function POST(request: NextRequest) {
       console.log('[Mock Mode] Tracking event:', { event_type, tenant_slug, visitor_id, event_data })
     }
 
-    return NextResponse.json({ success: true, mock: !isDbConfigured })
+    return NextResponse.json({ success: true, mock: !isDbConfigured }, { headers: corsHeaders })
   } catch (error) {
     console.error('Tracking API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders })
   }
 }
 
@@ -176,9 +194,12 @@ export async function GET(request: NextRequest) {
 }
 
 function getEmbedCode(tenantSlug: string): string {
+  // 使用绝对路径指向管理后台
+  const trackingUrl = 'https://website-backend-admin.vercel.app/api/tracking'
   return `
 (function() {
   var tenantSlug = '${tenantSlug}';
+  var trackingUrl = '${trackingUrl}';
   var visitorId = localStorage.getItem('zt_visitor_id') || 'visitor_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   if (!localStorage.getItem('zt_visitor_id')) localStorage.setItem('zt_visitor_id', visitorId);
   
@@ -199,8 +220,8 @@ function getEmbedCode(tenantSlug: string): string {
       event_data: eventData
     };
     navigator.sendBeacon
-      ? navigator.sendBeacon('/api/tracking', JSON.stringify(data))
-      : fetch('/api/tracking', {
+      ? navigator.sendBeacon(trackingUrl, JSON.stringify(data))
+      : fetch(trackingUrl, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(data),
