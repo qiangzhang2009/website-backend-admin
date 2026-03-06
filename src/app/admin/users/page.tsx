@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { Table, Card, Input, Select, Button, Space, Tag, Modal, Descriptions, Tabs, Spin, Empty } from 'antd'
 import { SearchOutlined, EyeOutlined, ExportOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -17,7 +18,11 @@ dayjs.locale('zh-cn')
 
 const { Option } = Select
 
-const TENANT = 'zxqconsulting'
+// 从 URL 参数获取当前租户
+function useTenantFromURL() {
+  const searchParams = useSearchParams()
+  return searchParams.get('tenant') || ''
+}
 
 interface User {
   id: string
@@ -45,6 +50,7 @@ function intentLevel(u: User): { color: string; text: string } {
 }
 
 export default function UsersPage() {
+  const TENANT = useTenantFromURL()
   const [users, setUsers] = useState<User[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -74,7 +80,7 @@ export default function UsersPage() {
     }
   }, [pageSize])
 
-  useEffect(() => { fetchUsers() }, [fetchUsers])
+  useEffect(() => { fetchUsers() }, [fetchUsers, TENANT])
 
   const handleSearch = () => {
     setPage(1)

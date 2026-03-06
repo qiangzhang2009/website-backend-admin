@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { Table, Card, Input, Select, Button, Space, Tag, Form, Drawer, message, Empty } from 'antd'
 import { SearchOutlined, PlusOutlined, ExportOutlined, PhoneOutlined, MessageOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -17,7 +18,11 @@ dayjs.locale('zh-cn')
 const { Option } = Select
 const { TextArea } = Input
 
-const TENANT = 'zxqconsulting'
+// 从 URL 参数获取当前租户
+function useTenantFromURL() {
+  const searchParams = useSearchParams()
+  return searchParams.get('tenant') || ''
+}
 
 interface Inquiry {
   id: string
@@ -37,6 +42,7 @@ interface Inquiry {
 }
 
 export default function InquiriesPage() {
+  const TENANT = useTenantFromURL()
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -68,7 +74,7 @@ export default function InquiriesPage() {
     }
   }, [pageSize])
 
-  useEffect(() => { fetchInquiries() }, [fetchInquiries])
+  useEffect(() => { fetchInquiries() }, [fetchInquiries, TENANT])
 
   const handleSave = async () => {
     if (!selectedInquiry) return

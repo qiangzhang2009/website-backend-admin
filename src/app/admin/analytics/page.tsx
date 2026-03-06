@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Card, Row, Col, Tabs, Table, Tag, Space, Select, Spin, Statistic, Empty } from 'antd'
 import { Line, Bar } from '@ant-design/charts'
@@ -14,7 +15,11 @@ import 'dayjs/locale/zh-cn'
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-const TENANT = 'zxqconsulting'
+// 从 URL 参数获取当前租户
+function useTenantFromURL() {
+  const searchParams = useSearchParams()
+  return searchParams.get('tenant') || ''
+}
 
 interface TrafficRow { date: string; visitors: number; pageViews: number }
 interface SourceRow { source: string; count: number }
@@ -23,6 +28,7 @@ interface Funnel { visitors: number; toolUsers: number; inquiryUsers: number; co
 interface ToolStat { tool: string; total: number; completed: number; abandoned: number; avgTime: string; completionRate: number }
 
 export default function AnalyticsPage() {
+  const TENANT = useTenantFromURL()
   const [days, setDays] = useState(7)
   const [traffic, setTraffic] = useState<TrafficRow[]>([])
   const [sources, setSources] = useState<SourceRow[]>([])
@@ -32,6 +38,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!TENANT) return
     const load = async () => {
       setLoading(true)
       try {
@@ -55,7 +62,7 @@ export default function AnalyticsPage() {
       }
     }
     load()
-  }, [days])
+  }, [TENANT, days])
 
   const funnelData = funnel
     ? [

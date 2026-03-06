@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Card, Row, Col, Statistic, Table, Tag, Button, Space, DatePicker, Spin } from 'antd'
 import {
@@ -23,7 +24,11 @@ dayjs.locale('zh-cn')
 
 const { RangePicker } = DatePicker
 
-const TENANT = 'zxqconsulting'
+// 从 URL 参数获取当前租户
+function useTenantFromURL() {
+  const searchParams = useSearchParams()
+  return searchParams.get('tenant') || ''
+}
 
 interface Stats {
   todayVisitors: number
@@ -43,6 +48,7 @@ interface InquiryRow {
 }
 
 export default function DashboardPage() {
+  const TENANT = useTenantFromURL()
   const [stats, setStats] = useState<Stats | null>(null)
   const [traffic, setTraffic] = useState<TrafficRow[]>([])
   const [tools, setTools] = useState<ToolRow[]>([])
@@ -50,6 +56,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // 只有租户确定后才加载数据
+    if (!TENANT) return
+
     const load = async () => {
       try {
         const [statsRes, trafficRes, toolsRes, inqRes] = await Promise.all([
@@ -72,7 +81,7 @@ export default function DashboardPage() {
       }
     }
     load()
-  }, [])
+  }, [TENANT])
 
   const lineConfig = {
     data: traffic.flatMap(d => [

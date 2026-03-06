@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Card, Row, Col, Table, Tag, Button, Space, Progress, Tooltip, Badge, Avatar, Spin, Empty } from 'antd'
 import { ThunderboltOutlined, ReloadOutlined, ExportOutlined } from '@ant-design/icons'
@@ -14,7 +15,11 @@ import 'dayjs/locale/zh-cn'
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-const TENANT = 'zxqconsulting'
+// 从 URL 参数获取当前租户
+function useTenantFromURL() {
+  const searchParams = useSearchParams()
+  return searchParams.get('tenant') || ''
+}
 
 interface Lead {
   id: string
@@ -68,6 +73,7 @@ const salesTeam = [
 ]
 
 export default function LeadScoringPage() {
+  const TENANT = useTenantFromURL()
   const [leads, setLeads] = useState<Lead[]>([])
   const [levelStats, setLevelStats] = useState<LevelStats>({ A: 0, B: 0, C: 0, D: 0 })
   const [total, setTotal] = useState(0)
@@ -90,7 +96,9 @@ export default function LeadScoringPage() {
     }
   }
 
-  useEffect(() => { fetchLeads() }, [])
+  useEffect(() => {
+    if (TENANT) fetchLeads()
+  }, [TENANT])
 
   const columns = [
     {

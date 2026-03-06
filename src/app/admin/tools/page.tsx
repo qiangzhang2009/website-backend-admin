@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Card, Row, Col, Table, Tag, Space, Select, Spin, Progress, Empty } from 'antd'
 import { Column } from '@ant-design/charts'
@@ -14,7 +15,11 @@ import 'dayjs/locale/zh-cn'
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-const TENANT = 'zxqconsulting'
+// 从 URL 参数获取当前租户
+function useTenantFromURL() {
+  const searchParams = useSearchParams()
+  return searchParams.get('tenant') || ''
+}
 
 interface ToolStat {
   tool: string
@@ -33,11 +38,13 @@ interface RecentInteraction {
 }
 
 export default function ToolsPage() {
+  const TENANT = useTenantFromURL()
   const [toolStats, setToolStats] = useState<ToolStat[]>([])
   const [recentInteractions, setRecentInteractions] = useState<RecentInteraction[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!TENANT) return
     const load = async () => {
       setLoading(true)
       try {
@@ -52,7 +59,7 @@ export default function ToolsPage() {
       }
     }
     load()
-  }, [])
+  }, [TENANT])
 
   const columnConfig = {
     data: toolStats,

@@ -22,7 +22,7 @@ import {
   AppstoreOutlined,
 } from '@ant-design/icons'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const { Header, Sider, Content } = Layout
 
@@ -39,9 +39,13 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [tenants, setTenants] = useState<Tenant[]>([])
-  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null)
   const [tenantsLoading, setTenantsLoading] = useState(true)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // 从 URL 获取当前租户
+  const currentTenantSlug = searchParams.get('tenant')
+  const selectedTenant = tenants.find(t => t.slug === currentTenantSlug) || tenants[0] || null
 
   useEffect(() => {
     let cancelled = false
@@ -56,9 +60,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           slug: s.slug,
         }))
         setTenants(list)
-        if (list.length > 0 && !selectedTenant) {
-          setSelectedTenant(list[0])
-        }
       })
       .catch(() => {
         if (!cancelled) setTenants([])
@@ -196,7 +197,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             style={{ fontSize: 16 }}
           />
           <Space>
-            {/* 租户切换：从 /api/admin/sites 加载真实租户列表 */}
+            {/* 租户切换：从 /api/admin/sites 加载真实租户列表，通过 URL 参数 tenant 传递 */}
             <Dropdown
               menu={{
                 items: tenants.map(t => ({
@@ -205,8 +206,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   label: t.name,
                 })),
                 onClick: ({ key }) => {
-                  const t = tenants.find(x => x.slug === key)
-                  if (t) setSelectedTenant(t)
+                  // 切换租户时更新 URL 参数
+                  const currentPath = window.location.pathname
+                  const url = new URL(currentPath, window.location.origin)
+                  url.searchParams.set('tenant', key)
+                  router.push(url.toString())
                 },
               }}
               disabled={tenantsLoading || tenants.length === 0}
