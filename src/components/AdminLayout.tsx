@@ -1,11 +1,11 @@
 /**
  * 后台管理系统布局
- * 包含侧边栏、头部和租户切换
+ * 包含侧边栏、头部和租户切换（租户列表来自 /api/admin/sites）
  */
 
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layout, Menu, Avatar, Dropdown, Button, Space } from 'antd'
 import {
   DashboardOutlined,
@@ -38,12 +38,37 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
-  const [selectedTenant, setSelectedTenant] = useState<Tenant>({
-    id: 'tenant_001',
-    name: '张小强企业咨询',
-    slug: 'zxqconsulting',
-  })
+  const [tenants, setTenants] = useState<Tenant[]>([])
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null)
+  const [tenantsLoading, setTenantsLoading] = useState(true)
   const router = useRouter()
+
+  useEffect(() => {
+    let cancelled = false
+    setTenantsLoading(true)
+    fetch('/api/admin/sites')
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to load sites')))
+      .then(data => {
+        if (cancelled) return
+        const list = (data.sites ?? []).map((s: { id: string; name: string; slug: string }) => ({
+          id: s.id,
+          name: s.name,
+          slug: s.slug,
+        }))
+        setTenants(list)
+        if (list.length > 0 && !selectedTenant) {
+          setSelectedTenant(list[0])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTenants([])
+      })
+      .finally(() => {
+        if (!cancelled) setTenantsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
 
   const menuItems = [
     {
@@ -171,31 +196,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             style={{ fontSize: 16 }}
           />
           <Space>
-            {/* 租户切换 */}
+            {/* 租户切换：从 /api/admin/sites 加载真实租户列表 */}
             <Dropdown
               menu={{
-                items: [
-                  {
-                    key: 'zxqconsulting',
-                    icon: <GlobalOutlined />,
-                    label: '张小强企业咨询',
-                  },
-                  {
-                    key: 'demo',
-                    icon: <GlobalOutlined />,
-                    label: '演示站点',
-                  },
-                ],
+                items: tenants.map(t => ({
+                  key: t.slug,
+                  icon: <GlobalOutlined />,
+                  label: t.name,
+                })),
                 onClick: ({ key }) => {
-                  setSelectedTenant({
-                    slug: key,
-                    name: key === 'zxqconsulting' ? '张小强企业咨询' : '演示站点',
-                  })
+                  const t = tenants.find(x => x.slug === key)
+                  if (t) setSelectedTenant(t)
                 },
               }}
+              disabled={tenantsLoading || tenants.length === 0}
             >
-              <Button icon={<GlobalOutlined />}>
-                {selectedTenant?.name || '选择站点'}
+              <Button icon={<GlobalOutlined />} loading={tenantsLoading}>
+                {tenantsLoading ? '加载中...' : (selectedTenant?.name || (tenants.length === 0 ? '暂无站点' : '选择站点'))}
               </Button>
             </Dropdown>
             {/* 用户菜单 */}
