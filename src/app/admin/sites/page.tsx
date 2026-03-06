@@ -38,9 +38,9 @@ interface SiteRecord {
   language: string
   settings: { features?: Record<string, boolean> }
   created_at: string
-  users: number
-  inquiries: number
-  page_views: number
+  users: string  // 数据库返回的是字符串
+  inquiries: string
+  page_views: string
 }
 
 type BadgeStatus = 'success' | 'processing' | 'error' | 'default' | 'warning'
@@ -112,9 +112,10 @@ export default function MultiSitePage() {
 
   const stats = {
     totalSites: sites.length,
-    activeSites: sites.length,
+    activeSites: sites.filter(s => Number(s.page_views) > 0).length,
     totalUsers: sites.reduce((sum, w) => sum + Number(w.users), 0),
     totalInquiries: sites.reduce((sum, w) => sum + Number(w.inquiries), 0),
+    totalPageViews: sites.reduce((sum, w) => sum + Number(w.page_views), 0),
   }
 
   const columns = [
@@ -223,6 +224,11 @@ export default function MultiSitePage() {
         <Col xs={6}>
           <Card>
             <Statistic title="总询盘数" value={stats.totalInquiries} prefix={<MessageOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card>
+            <Statistic title="总浏览量" value={stats.totalPageViews} prefix={<EyeOutlined />} />
           </Card>
         </Col>
       </Row>
