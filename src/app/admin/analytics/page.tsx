@@ -1,131 +1,125 @@
 /**
- * 数据分析页面
- * 流量分析、转化漏斗、工具使用分析
+ * 数据分析页面 - 真实数据版
  */
 
 'use client'
 
-import { useState } from 'react'
-import { Card, Row, Col, Tabs, Table, Tag, DatePicker, Select, Space } from 'antd'
+import { useState, useEffect } from 'react'
+import { Card, Row, Col, Tabs, Table, Tag, Space, Select, Spin, Statistic, Empty } from 'antd'
 import { Line, Bar } from '@ant-design/charts'
 import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
 
-const { RangePicker } = DatePicker
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 
-// 流量数据
-const mockTrafficData = [
-  { date: '2026-02-27', pv: 1250, uv: 98, sessions: 112 },
-  { date: '2026-02-28', pv: 1380, uv: 112, sessions: 125 },
-  { date: '2026-03-01', pv: 1420, uv: 105, sessions: 118 },
-  { date: '2026-03-02', pv: 1680, uv: 134, sessions: 148 },
-  { date: '2026-03-03', pv: 1320, uv: 98, sessions: 110 },
-  { date: '2026-03-04', pv: 1550, uv: 126, sessions: 138 },
-  { date: '2026-03-05', pv: 1620, uv: 128, sessions: 142 },
-]
+const TENANT = 'zxqconsulting'
 
-// 来源分析
-const mockSourceData = [
-  { source: '搜索引擎', visits: 856, rate: 42.5 },
-  { source: '直接访问', visits: 524, rate: 26.0 },
-  { source: '社交媒体', visits: 312, rate: 15.5 },
-  { source: '外部链接', visits: 186, rate: 9.2 },
-  { source: '邮件营销', visits: 134, rate: 6.7 },
-]
-
-// 转化漏斗
-const mockFunnelData = [
-  { stage: '访问', count: 3652, rate: 100 },
-  { stage: '工具使用', count: 1826, rate: 50 },
-  { stage: '表单提交', count: 365, rate: 10 },
-  { stage: '销售跟进', count: 182, rate: 5 },
-  { stage: '成交', count: 52, rate: 1.4 },
-]
-
-// 页面排行
-const mockPageData = [
-  { page: '/services', pv: 2456, uv: 1230, avgTime: '2:35' },
-  { page: '/markets', pv: 1890, uv: 945, avgTime: '3:12' },
-  { page: '/tools', pv: 1560, uv: 780, avgTime: '5:48' },
-  { page: '/contact', pv: 980, uv: 490, avgTime: '1:25' },
-  { page: '/about', pv: 650, uv: 325, avgTime: '1:45' },
-]
-
-// 工具使用详细数据
-const mockToolDetailData = [
-  { tool: '成本计算器', total: 456, completed: 312, abandoned: 144, avgTime: '4:25' },
-  { tool: '时间估算', total: 312, completed: 245, abandoned: 67, avgTime: '3:15' },
-  { tool: '政策查询', total: 287, completed: 268, abandoned: 19, avgTime: '2:45' },
-  { tool: 'ROI模拟', total: 198, completed: 156, abandoned: 42, avgTime: '5:30' },
-  { tool: '风险评估', total: 156, completed: 98, abandoned: 58, avgTime: '6:20' },
-]
+interface TrafficRow { date: string; visitors: number; pageViews: number }
+interface SourceRow { source: string; count: number }
+interface PageRow { page: string; pv: number; uv: number }
+interface Funnel { visitors: number; toolUsers: number; inquiryUsers: number; converted: number }
+interface ToolStat { tool: string; total: number; completed: number; abandoned: number; avgTime: string; completionRate: number }
 
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState('traffic')
+  const [days, setDays] = useState(7)
+  const [traffic, setTraffic] = useState<TrafficRow[]>([])
+  const [sources, setSources] = useState<SourceRow[]>([])
+  const [topPages, setTopPages] = useState<PageRow[]>([])
+  const [funnel, setFunnel] = useState<Funnel | null>(null)
+  const [toolStats, setToolStats] = useState<ToolStat[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const trafficConfig = {
-    data: mockTrafficData,
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      try {
+        const [trafficRes, analyticsRes, toolsRes] = await Promise.all([
+          fetch(`/api/admin/traffic?tenant=${TENANT}&days=${days}`),
+          fetch(`/api/admin/analytics?tenant=${TENANT}`),
+          fetch(`/api/admin/tools?tenant=${TENANT}`),
+        ])
+        const [trafficData, analyticsData, toolsData] = await Promise.all([
+          trafficRes.json(), analyticsRes.json(), toolsRes.json(),
+        ])
+        setTraffic(trafficData)
+        setSources(analyticsData.sourceStats ?? [])
+        setTopPages(analyticsData.topPages ?? [])
+        setFunnel(analyticsData.funnel ?? null)
+        setToolStats(toolsData.toolStats ?? [])
+      } catch (e) {
+        console.error('Analytics load error:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [days])
+
+  const funnelData = funnel
+    ? [
+        { stage: '总访客', count: funnel.visitors },
+        { stage: '使用工具', count: funnel.toolUsers },
+        { stage: '提交询盘', count: funnel.inquiryUsers },
+        { stage: '成交转化', count: funnel.converted },
+      ]
+    : []
+
+  const trafficLineConfig = {
+    data: traffic.flatMap(d => [
+      { date: d.date, value: d.pageViews, type: '页面浏览' },
+      { date: d.date, value: d.visitors, type: '独立访客' },
+    ]),
     xField: 'date',
-    yField: 'pv',
+    yField: 'value',
+    colorField: 'type',
     smooth: true,
     height: 300,
-    color: '#1890ff',
     xAxis: { label: { formatter: (v: string) => dayjs(v).format('MM-DD') } },
-    legend: { position: 'top' as const },
   }
 
-  const sourceConfig = {
-    data: mockSourceData,
+  const sourceBarConfig = {
+    data: sources,
     xField: 'source',
-    yField: 'visits',
+    yField: 'count',
     color: '#52c41a',
     height: 300,
     label: { position: 'top' as const },
   }
 
-  const funnelConfig = {
-    data: mockFunnelData,
+  const funnelBarConfig = {
+    data: funnelData,
     xField: 'stage',
     yField: 'count',
     color: '#722ed1',
     height: 300,
-    label: { position: 'top' as const, formatter: (d: { count: number; rate: number }) => `${d.count} (${d.rate}%)` },
+    label: { position: 'top' as const },
   }
 
-  type PageRow = { page: string; pv: number; uv: number; avgTime: string }
-  type ToolRow = { tool: string; total: number; completed: number; abandoned: number; avgTime: string }
-
-  const pageColumns = [
-    { title: '页面', dataIndex: 'page', key: 'page' },
-    { title: '浏览量', dataIndex: 'pv', key: 'pv', sorter: (a: PageRow, b: PageRow) => a.pv - b.pv },
-    { title: '独立访客', dataIndex: 'uv', key: 'uv' },
-    { title: '平均停留', dataIndex: 'avgTime', key: 'avgTime' },
-  ]
-
-  const toolColumns = [
-    { title: '工具', dataIndex: 'tool', key: 'tool' },
-    { title: '总使用', dataIndex: 'total', key: 'total' },
-    { title: '完成', dataIndex: 'completed', key: 'completed', render: (v: number, r: ToolRow) => <Tag color="green">{v} ({Math.round(v/r.total*100)}%)</Tag> },
-    { title: '放弃', dataIndex: 'abandoned', key: 'abandoned', render: (v: number, r: ToolRow) => <Tag color="red">{v} ({Math.round(v/r.total*100)}%)</Tag> },
-    { title: '平均用时', dataIndex: 'avgTime', key: 'avgTime' },
-  ]
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '80px 0' }}><Spin size="large" tip="加载分析数据..." /></div>
+  }
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>数据分析</h2>
         <Space>
-          <RangePicker />
-          <Select defaultValue="7d" style={{ width: 100 }}>
-            <Select.Option value="7d">最近7天</Select.Option>
-            <Select.Option value="30d">最近30天</Select.Option>
-            <Select.Option value="90d">最近90天</Select.Option>
-          </Select>
+          <Select
+            value={days}
+            onChange={setDays}
+            style={{ width: 110 }}
+            options={[
+              { value: 7, label: '最近7天' },
+              { value: 30, label: '最近30天' },
+              { value: 90, label: '最近90天' },
+            ]}
+          />
         </Space>
       </div>
 
       <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
         items={[
           {
             key: 'traffic',
@@ -133,18 +127,36 @@ export default function AnalyticsPage() {
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24}>
-                  <Card title="流量趋势">
-                    <Line {...trafficConfig} />
+                  <Card title={`流量趋势（最近${days}天）`}>
+                    {traffic.length > 0
+                      ? <Line {...trafficLineConfig} />
+                      : <Empty description="暂无流量数据，请确认追踪 SDK 已部署到网站" />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="来源分布">
-                    <Bar {...sourceConfig} />
+                  <Card title="流量来源分布">
+                    {sources.length > 0
+                      ? <Bar {...sourceBarConfig} />
+                      : <Empty description="暂无来源数据" />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="热门页面">
-                    <Table dataSource={mockPageData} columns={pageColumns} pagination={false} size="small" />
+                  <Card title="热门页面 TOP10">
+                    {topPages.length > 0 ? (
+                      <Table
+                        dataSource={topPages}
+                        rowKey="page"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '页面路径', dataIndex: 'page', key: 'page', ellipsis: true },
+                          { title: '浏览量', dataIndex: 'pv', key: 'pv', sorter: (a: PageRow, b: PageRow) => a.pv - b.pv },
+                          { title: '独立访客', dataIndex: 'uv', key: 'uv' },
+                        ]}
+                      />
+                    ) : (
+                      <Empty description="暂无页面数据" />
+                    )}
                   </Card>
                 </Col>
               </Row>
@@ -155,32 +167,61 @@ export default function AnalyticsPage() {
             label: '转化漏斗',
             children: (
               <Row gutter={[16, 16]}>
+                {funnel && (
+                  <Col xs={24}>
+                    <Row gutter={16}>
+                      <Col xs={12} sm={6}>
+                        <Card><Statistic title="总访客" value={funnel.visitors} /></Card>
+                      </Col>
+                      <Col xs={12} sm={6}>
+                        <Card><Statistic title="使用工具" value={funnel.toolUsers} suffix={funnel.visitors > 0 ? `(${((funnel.toolUsers/funnel.visitors)*100).toFixed(1)}%)` : ''} /></Card>
+                      </Col>
+                      <Col xs={12} sm={6}>
+                        <Card><Statistic title="提交询盘" value={funnel.inquiryUsers} suffix={funnel.visitors > 0 ? `(${((funnel.inquiryUsers/funnel.visitors)*100).toFixed(1)}%)` : ''} /></Card>
+                      </Col>
+                      <Col xs={12} sm={6}>
+                        <Card><Statistic title="成交转化" value={funnel.converted} suffix={funnel.visitors > 0 ? `(${((funnel.converted/funnel.visitors)*100).toFixed(1)}%)` : ''} /></Card>
+                      </Col>
+                    </Row>
+                  </Col>
+                )}
                 <Col xs={24}>
-                  <Card title="用户转化漏斗">
-                    <Bar {...funnelConfig} />
+                  <Card title="转化漏斗图">
+                    {funnelData.length > 0 && funnelData[0].count > 0
+                      ? <Bar {...funnelBarConfig} />
+                      : <Empty description="暂无转化数据" />}
                   </Card>
                 </Col>
                 <Col xs={24}>
                   <Card title="各阶段转化率">
                     <Table
-                      dataSource={mockFunnelData}
+                      dataSource={funnelData}
+                      rowKey="stage"
+                      pagination={false}
                       columns={[
                         { title: '阶段', dataIndex: 'stage', key: 'stage' },
                         { title: '用户数', dataIndex: 'count', key: 'count' },
-                        { title: '转化率', dataIndex: 'rate', key: 'rate', render: (v: number) => `${v}%` },
                         {
-                          title: '流失率',
+                          title: '转化率',
+                          key: 'rate',
+                          render: (_: unknown, r: { stage: string; count: number }, index: number) => {
+                            if (index === 0) return '100%'
+                            const base = funnelData[0].count
+                            return base > 0 ? `${((r.count / base) * 100).toFixed(1)}%` : '-'
+                          },
+                        },
+                        {
+                          title: '环比流失',
                           key: 'loss',
-                          render: (_: unknown, __: unknown, index: number) => {
+                          render: (_: unknown, r: { stage: string; count: number }, index: number) => {
                             if (index === 0) return '-'
-                            const prev = mockFunnelData[index - 1].count
-                            const curr = mockFunnelData[index].count
-                            return `${Math.round((prev - curr) / prev * 100)}%`
-                          }
+                            const prev = funnelData[index - 1].count
+                            if (prev <= 0) return '-'
+                            const lost = ((prev - r.count) / prev * 100).toFixed(1)
+                            return <Tag color="red">-{lost}%</Tag>
+                          },
                         },
                       ]}
-                      pagination={false}
-                      rowKey="stage"
                     />
                   </Card>
                 </Col>
@@ -194,7 +235,44 @@ export default function AnalyticsPage() {
               <Row gutter={[16, 16]}>
                 <Col xs={24}>
                   <Card title="工具使用详情">
-                    <Table dataSource={mockToolDetailData} columns={toolColumns} pagination={false} rowKey="tool" />
+                    {toolStats.length > 0 ? (
+                      <Table
+                        dataSource={toolStats}
+                        rowKey="tool"
+                        pagination={false}
+                        columns={[
+                          { title: '工具名称', dataIndex: 'tool', key: 'tool', render: (t: string) => <Tag color="blue">{t}</Tag> },
+                          { title: '总使用次数', dataIndex: 'total', key: 'total' },
+                          {
+                            title: '完成',
+                            dataIndex: 'completed',
+                            key: 'completed',
+                            render: (v: number, r: ToolStat) => (
+                              <span style={{ color: '#52c41a' }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span>
+                            ),
+                          },
+                          {
+                            title: '放弃',
+                            dataIndex: 'abandoned',
+                            key: 'abandoned',
+                            render: (v: number, r: ToolStat) => (
+                              <span style={{ color: '#ff4d4f' }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span>
+                            ),
+                          },
+                          { title: '平均用时', dataIndex: 'avgTime', key: 'avgTime' },
+                          {
+                            title: '完成率',
+                            dataIndex: 'completionRate',
+                            key: 'completionRate',
+                            render: (v: number) => (
+                              <Tag color={v >= 70 ? 'green' : v >= 40 ? 'orange' : 'red'}>{v}%</Tag>
+                            ),
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <Empty description="暂无工具使用数据，等待用户与工具交互后自动记录" />
+                    )}
                   </Card>
                 </Col>
               </Row>
