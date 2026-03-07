@@ -6,13 +6,16 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Card, Row, Col, Statistic, Table, Tag, Button, Space, DatePicker, Spin } from 'antd'
+import { Card, Row, Col, Statistic, Table, Tag, Button, Space, DatePicker, Spin, message } from 'antd'
 import {
   UserOutlined,
   MessageOutlined,
   RiseOutlined,
   EyeOutlined,
   ExportOutlined,
+  AppstoreOutlined,
+  FundOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import { Line, Column, Pie } from '@ant-design/charts'
 import dayjs from 'dayjs'
@@ -46,6 +49,21 @@ interface InquiryRow {
   id: string; name: string; company: string; product_type: string
   target_market: string; status: string; created_at: string
 }
+interface ModuleStat {
+  module: string
+  total: number
+  completed: number
+  abandoned: number
+  avgTime: string
+  completionRate: number
+}
+interface RfmSummary {
+  VIP: number
+  Regular: number
+  At_Risk: number
+  Lost: number
+  total: number
+}
 
 export default function DashboardPage() {
   const TENANT = useTenantFromURL()
@@ -53,6 +71,8 @@ export default function DashboardPage() {
   const [traffic, setTraffic] = useState<TrafficRow[]>([])
   const [tools, setTools] = useState<ToolRow[]>([])
   const [inquiries, setInquiries] = useState<InquiryRow[]>([])
+  const [moduleStats, setModuleStats] = useState<Record<string, ModuleStat>>({})
+  const [rfmSummary, setRfmSummary] = useState<RfmSummary>({ VIP: 0, Regular: 0, At_Risk: 0, Lost: 0, total: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -61,19 +81,23 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const [statsRes, trafficRes, toolsRes, inqRes] = await Promise.all([
+        const [statsRes, trafficRes, toolsRes, inqRes, modulesRes, rfmRes] = await Promise.all([
           fetch(`/api/admin/stats?tenant=${TENANT}`),
           fetch(`/api/admin/traffic?tenant=${TENANT}&days=7`),
           fetch(`/api/admin/tools?tenant=${TENANT}`),
           fetch(`/api/admin/inquiries?tenant=${TENANT}&limit=5`),
+          fetch(`/api/admin/modules?tenant=${TENANT}`),
+          fetch(`/api/admin/rfm?tenant=${TENANT}`),
         ])
-        const [statsData, trafficData, toolsData, inqData] = await Promise.all([
-          statsRes.json(), trafficRes.json(), toolsRes.json(), inqRes.json(),
+        const [statsData, trafficData, toolsData, inqData, modulesData, rfmData] = await Promise.all([
+          statsRes.json(), trafficRes.json(), toolsRes.json(), inqRes.json(), modulesRes.json(), rfmRes.json(),
         ])
         setStats(statsData)
         setTraffic(trafficData)
         setTools(toolsData.toolStats ?? [])
         setInquiries(inqData.data ?? [])
+        setModuleStats(modulesData.stats ?? {})
+        setRfmSummary(rfmData.summary ?? { VIP: 0, Regular: 0, At_Risk: 0, Lost: 0, total: 0 })
       } catch (e) {
         console.error('Dashboard load error:', e)
       } finally {
@@ -163,6 +187,7 @@ export default function DashboardPage() {
   }
 
   const s = stats ?? { todayVisitors: 0, todayVisitorsChange: 0, totalUsers: 0, totalUsersChange: 0, inquiries: 0, inquiriesChange: 0, conversionRate: 0 }
+  const moduleList = Object.values(moduleStats).filter(m => m.total > 0).sort((a, b) => b.total - a.total)
 
   return (
     <div>
@@ -170,7 +195,7 @@ export default function DashboardPage() {
         <h2 style={{ margin: 0 }}>数据概览</h2>
         <Space>
           <RangePicker />
-          <Button icon={<ExportOutlined />}>导出数据</Button>
+          <Button icon={<ExportOutlined />} onClick={() => message.info('导出功能开发中')}>导出数据</Button>
         </Space>
       </div>
 
@@ -208,6 +233,40 @@ export default function DashboardPage() {
         </Col>
       </Row>
 
+      {/* RFM 用户价值分析 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24}>
+          <Card title="🎯 用户价值分布 (RFM)" extra={<Button type="link" href={`/admin/rfm?tenant=${TENANT}`}>查看详情</Button>}>
+            <Row gutter={16}>
+              <Col xs={6}>
+                <div className="text-center p-4 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg text-white">
+                  <div className="text-3xl font-bold">{rfmSummary.VIP}</div>
+                  <div className="text-sm">高价值用户</div>
+                </div>
+              </Col>
+              <Col xs={6}>
+                <div className="text-center p-4 bg-gradient-to-r from-blue-400 to-blue-600 rounded-lg text-white">
+                  <div className="text-3xl font-bold">{rfmSummary.Regular}</div>
+                  <div className="text-sm">普通用户</div>
+                </div>
+              </Col>
+              <Col xs={6}>
+                <div className="text-center p-4 bg-gradient-to-r from-red-400 to-red-600 rounded-lg text-white">
+                  <div className="text-3xl font-bold">{rfmSummary.At_Risk}</div>
+                  <div className="text-sm">风险用户</div>
+                </div>
+              </Col>
+              <Col xs={6}>
+                <div className="text-center p-4 bg-gradient-to-r from-gray-400 to-gray-600 rounded-lg text-white">
+                  <div className="text-3xl font-bold">{rfmSummary.Lost}</div>
+                  <div className="text-sm">流失用户</div>
+                </div>
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+      </Row>
+
       {/* 图表区域 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={16}>
@@ -222,10 +281,34 @@ export default function DashboardPage() {
         </Col>
       </Row>
 
+      {/* 模块使用分析 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={12}>
-          <Card title="工具使用排行">
-            {tools.length > 0 ? <Column {...columnConfig} /> : <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>暂无数据</div>}
+          <Card title="📊 模块使用排行" extra={<Button type="link" href={`/admin/modules?tenant=${TENANT}`}>查看详情</Button>}>
+            {moduleList.length > 0 ? (
+              <div className="space-y-3">
+                {moduleList.slice(0, 5).map((m, idx) => (
+                  <div key={m.module} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                        idx === 0 ? 'bg-yellow-500 text-white' : idx === 1 ? 'bg-gray-400 text-white' : idx === 2 ? 'bg-orange-400 text-white' : 'bg-blue-100 text-blue-600'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <span className="font-medium">{m.module}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-blue-600">{m.total} 次</span>
+                      <span className={`${m.completionRate >= 60 ? 'text-green-600' : m.completionRate >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
+                        {m.completionRate}% 完成
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>暂无模块使用数据</div>
+            )}
           </Card>
         </Col>
         <Col xs={24} lg={12}>

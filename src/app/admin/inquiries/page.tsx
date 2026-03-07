@@ -231,8 +231,8 @@ export default function InquiriesPage() {
             <Button icon={<ReloadOutlined />} onClick={() => { setStatusFilter(undefined); setPage(1); fetchInquiries(undefined, 1) }}>
               重置
             </Button>
-            <Button type="primary" icon={<PlusOutlined />}>新建询盘</Button>
-            <Button icon={<ExportOutlined />}>导出</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建询盘功能开发中')}>新建询盘</Button>
+            <Button icon={<ExportOutlined />} onClick={() => message.info('导出功能开发中')}>导出</Button>
             <span style={{ color: '#888' }}>共 {total} 条询盘</span>
           </Space>
         </div>

@@ -5,8 +5,8 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import { Card, Row, Col, Table, Tag, Space, Select, Spin, Progress, Empty } from 'antd'
+import { useEffect, useState } from 'react'
+import { Card, Row, Col, Table, Tag, Space, Select, Spin, Progress, Empty, message, Modal, Button } from 'antd'
 import { Column } from '@ant-design/charts'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -35,6 +35,8 @@ interface RecentInteraction {
   action: string
   visitor_id: string
   created_at: string
+  input_params?: Record<string, any>
+  output_result?: Record<string, any>
 }
 
 export default function ToolsPage() {
@@ -42,6 +44,8 @@ export default function ToolsPage() {
   const [toolStats, setToolStats] = useState<ToolStat[]>([])
   const [recentInteractions, setRecentInteractions] = useState<RecentInteraction[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedRecord, setSelectedRecord] = useState<RecentInteraction | null>(null)
+  const [modalVisible, setModalVisible] = useState(false)
 
   useEffect(() => {
     if (!TENANT) return
@@ -79,7 +83,13 @@ export default function ToolsPage() {
         <h2 style={{ margin: 0 }}>工具数据</h2>
         <Space>
           <Select defaultValue="all" style={{ width: 110 }}
-            options={[{ value: 'all', label: '全部工具' }]}
+            onChange={(value) => message.info(`筛选功能开发中: ${value}`)}
+            options={[
+              { value: 'all', label: '全部工具' },
+              { value: 'ai_chat', label: 'AI聊天' },
+              { value: 'bazi', label: '八字算命' },
+              { value: 'zhanbu', label: '占卜' },
+            ]}
           />
         </Space>
       </div>
@@ -178,6 +188,18 @@ export default function ToolsPage() {
                     key: 'created_at',
                     render: (v: string) => dayjs(v).fromNow(),
                   },
+                  {
+                    title: '操作',
+                    key: 'detail',
+                    render: (_: any, record: RecentInteraction) => (
+                      <Button type="link" size="small" onClick={() => {
+                        setSelectedRecord(record)
+                        setModalVisible(true)
+                      }}>
+                        详情
+                      </Button>
+                    ),
+                  },
                 ]}
               />
             ) : (
@@ -186,6 +208,44 @@ export default function ToolsPage() {
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        title={`工具使用详情 - ${selectedRecord?.tool_name}`}
+        open={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        width={700}
+        footer={[<Button key="close" onClick={() => setModalVisible(false)}>关闭</Button>]}
+      >
+        {selectedRecord && (
+          <div>
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <Card size="small" title="基本信息">
+                  <p><strong>访客ID:</strong> {selectedRecord.visitor_id}</p>
+                  <p><strong>动作:</strong> <Tag color={selectedRecord.action === 'complete' ? 'green' : 'red'}>{selectedRecord.action}</Tag></p>
+                  <p><strong>时间:</strong> {dayjs(selectedRecord.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
+                </Card>
+              </Col>
+              <Col span={12}>
+                <Card size="small" title="输入参数">
+                  <pre style={{ maxHeight: 200, overflow: 'auto', fontSize: 12 }}>
+                    {JSON.stringify(selectedRecord.input_params || {}, null, 2)}
+                  </pre>
+                </Card>
+              </Col>
+            </Row>
+            <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+              <Col span={24}>
+                <Card size="small" title="输出结果">
+                  <pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 12 }}>
+                    {JSON.stringify(selectedRecord.output_result || {}, null, 2)}
+                  </pre>
+                </Card>
+              </Col>
+            </Row>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

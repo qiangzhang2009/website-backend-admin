@@ -23,8 +23,8 @@ const mockTenantConfig = {
     inquiry: true,
     analytics: true,
     tools: true,
-    advancedAnalytics: false,
-    mlPrediction: false,
+    advancedAnalytics: true,
+    mlPrediction: true,
   },
 }
 

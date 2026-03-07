@@ -4,6 +4,7 @@
 
 import type { Metadata } from "next";
 import "./globals.css";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "数据管理系统",
@@ -17,7 +18,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={<div style={{ padding: 50, textAlign: 'center' }}>加载中...</div>}>
+          {children}
+        </Suspense>
+      </body>
     </html>
   );
 }

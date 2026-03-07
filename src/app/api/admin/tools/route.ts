@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         ORDER BY total DESC
       `,
       sql`
-        SELECT tool_name, action, visitor_id, created_at
+        SELECT tool_name, action, visitor_id, created_at, input_params, output_result
         FROM public.tool_interactions
         WHERE tenant_id=${tenantId}
         ORDER BY created_at DESC
@@ -48,7 +48,14 @@ export async function GET(request: NextRequest) {
           ? Number(((Number(r.completed) / Number(r.total)) * 100).toFixed(1))
           : 0,
       })),
-      recentInteractions,
+      recentInteractions: recentInteractions.map(r => ({
+        tool_name: r.tool_name,
+        action: r.action,
+        visitor_id: r.visitor_id,
+        created_at: r.created_at,
+        input_params: r.input_params,
+        output_result: r.output_result,
+      })),
     })
   } catch (error) {
     console.error('Tools API error:', error)

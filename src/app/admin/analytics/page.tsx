@@ -1,11 +1,11 @@
 /**
- * 数据分析页面 - 真实数据版
+ * 数据分析页面
  */
 
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Card, Row, Col, Tabs, Table, Tag, Space, Select, Spin, Statistic, Empty } from 'antd'
 import { Line, Bar } from '@ant-design/charts'
 import dayjs from 'dayjs'
@@ -27,7 +27,7 @@ interface PageRow { page: string; pv: number; uv: number }
 interface Funnel { visitors: number; toolUsers: number; inquiryUsers: number; converted: number }
 interface ToolStat { tool: string; total: number; completed: number; abandoned: number; avgTime: string; completionRate: number }
 
-export default function AnalyticsPage() {
+function AnalyticsPageWithSuspense() {
   const TENANT = useTenantFromURL()
   const [days, setDays] = useState(7)
   const [traffic, setTraffic] = useState<TrafficRow[]>([])
@@ -288,5 +288,14 @@ export default function AnalyticsPage() {
         ]}
       />
     </div>
+  )
+}
+
+// 使用 Suspense 包裹整个页面
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 50, textAlign: 'center' }}><Spin tip="加载中..." /></div>}>
+      <AnalyticsPageWithSuspense />
+    </Suspense>
   )
 }

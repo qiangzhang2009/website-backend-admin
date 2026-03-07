@@ -8,17 +8,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Card, Row, Col, Table, Tag, Button, Space, Modal, Form, Input, Select, Badge, Statistic, Drawer, Descriptions, message, Spin, Alert } from 'antd'
 import { PlusOutlined, SettingOutlined, GlobalOutlined, BarChartOutlined, ToolOutlined, UserOutlined, MessageOutlined, EyeOutlined, DeleteOutlined, CopyOutlined, ExportOutlined, ReloadOutlined } from '@ant-design/icons'
+import Link from 'next/link'
 
 const { Option } = Select
 const { TextArea } = Input
-
-// 套餐配置
-const plans = [
-  { key: 'trial', name: '试用版', price: '免费', features: ['基础追踪', '100用户', '1网站'] },
-  { key: 'starter', name: '基础版', price: '¥999/月', features: ['基础追踪', '1000用户', '3网站', '基础分析'] },
-  { key: 'business', name: '商业版', price: '¥2999/月', features: ['完整追踪', '5000用户', '10网站', '高级分析', '线索评分'] },
-  { key: 'enterprise', name: '企业版', price: '¥9999/月', features: ['完整追踪', '无限用户', '无限网站', '高级分析', 'ML预测', '专属客服'] },
-]
 
 // 功能模块
 const featureModules = [
@@ -183,8 +176,10 @@ export default function MultiSitePage() {
       render: (_: unknown, r: SiteRecord) => (
         <Space>
           <Button type="link" icon={<SettingOutlined />} onClick={e => { e.stopPropagation(); setSelectedSite(r); setDrawerVisible(true) }}>配置</Button>
-          <Button type="link" icon={<BarChartOutlined />}>数据</Button>
-          <Button type="link" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
+          <Link href={`/admin/analytics?tenant=${r.slug}`}>
+            <Button type="link" icon={<BarChartOutlined />} onClick={e => e.stopPropagation()}>数据</Button>
+          </Link>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={e => { e.stopPropagation(); message.info('删除功能开发中') }} />
         </Space>
       ),
     },
@@ -250,27 +245,6 @@ export default function MultiSitePage() {
             })}
           />
         </Spin>
-      </Card>
-
-      {/* 套餐配置 */}
-      <Card title="套餐配置" style={{ marginTop: 16 }}>
-        <Row gutter={16}>
-          {plans.map(plan => (
-            <Col xs={24} md={6} key={plan.key}>
-              <Card
-                size="small"
-                title={plan.name}
-                extra={<Tag>{plan.price}</Tag>}
-              >
-                <ul style={{ paddingLeft: 20, margin: 0 }}>
-                  {plan.features.map(f => (
-                    <li key={f} style={{ marginBottom: 4 }}>{f}</li>
-                  ))}
-                </ul>
-              </Card>
-            </Col>
-          ))}
-        </Row>
       </Card>
 
       {/* 添加网站弹窗 */}
@@ -383,9 +357,13 @@ export default function MultiSitePage() {
             </Card>
 
             <Space>
-              <Button icon={<SettingOutlined />}>功能配置</Button>
-              <Button icon={<BarChartOutlined />}>查看数据</Button>
-              <Button icon={<ExportOutlined />}>导出数据</Button>
+              <Link href={`/admin/settings?tenant=${selectedSite.slug}`}>
+                <Button icon={<SettingOutlined />}>功能配置</Button>
+              </Link>
+              <Link href={`/admin/analytics?tenant=${selectedSite.slug}`}>
+                <Button icon={<BarChartOutlined />}>查看数据</Button>
+              </Link>
+              <Button icon={<ExportOutlined />} onClick={() => message.info('导出功能开发中')}>导出数据</Button>
             </Space>
           </div>
         )}

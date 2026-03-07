@@ -6,7 +6,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { Table, Card, Input, Select, Button, Space, Tag, Modal, Descriptions, Tabs, Spin, Empty } from 'antd'
+import { Table, Card, Input, Select, Button, Space, Tag, Modal, Descriptions, Tabs, Spin, Empty, message } from 'antd'
 import { SearchOutlined, EyeOutlined, ExportOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -201,7 +201,7 @@ export default function UsersPage() {
             />
             <Button type="primary" onClick={handleSearch}>搜索</Button>
             <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
-            <Button icon={<ExportOutlined />}>导出</Button>
+            <Button type="primary" onClick={() => message.info('导出功能开发中')} icon={<ExportOutlined />}>导出</Button>
             <span style={{ color: '#888' }}>共 {total} 位用户</span>
           </Space>
         </div>

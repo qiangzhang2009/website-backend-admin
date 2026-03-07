@@ -254,8 +254,8 @@ CREATE POLICY "tracking_events_insert" ON public.tracking_events FOR INSERT WITH
 -- =============================================
 
 INSERT INTO public.tenants (name, slug, domain, settings) VALUES
-    ('张小强企业咨询', 'zxqconsulting', 'www.zxqconsulting.com', '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'),
-    ('演示站点', 'demo', NULL, '{"features": {"userProfile": true, "inquiry": true}}')
+    ('zxqconsulting网站', 'zxqconsulting', 'www.zxqconsulting.com', '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'),
+    ('知几命理网站', 'zero', 'zero.zxqconsulting.com', '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}')
 ON CONFLICT (slug) DO NOTHING;
 
 -- =============================================

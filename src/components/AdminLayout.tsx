@@ -75,37 +75,62 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     {
       key: '/admin/dashboard',
       icon: <DashboardOutlined />,
-      label: <Link href="/admin/dashboard">仪表盘</Link>,
+      label: <Link href={`/admin/dashboard?tenant=${currentTenantSlug || 'zxqconsulting'}`}>仪表盘</Link>,
     },
     {
       key: '/admin/users',
       icon: <UserOutlined />,
-      label: <Link href="/admin/users">用户管理</Link>,
+      label: <Link href={`/admin/users?tenant=${currentTenantSlug || 'zxqconsulting'}`}>用户管理</Link>,
+    },
+    {
+      key: '/admin/profiles',
+      icon: <UserOutlined />,
+      label: <Link href={`/admin/profiles?tenant=${currentTenantSlug || 'zxqconsulting'}`}>用户档案</Link>,
     },
     {
       key: '/admin/leads',
       icon: <FundOutlined />,
-      label: <Link href="/admin/leads">线索评分</Link>,
+      label: <Link href={`/admin/leads?tenant=${currentTenantSlug || 'zxqconsulting'}`}>线索评分</Link>,
     },
     {
       key: '/admin/inquiries',
       icon: <MessageOutlined />,
-      label: <Link href="/admin/inquiries">询盘管理</Link>,
+      label: <Link href={`/admin/inquiries?tenant=${currentTenantSlug || 'zxqconsulting'}`}>询盘管理</Link>,
+    },
+    {
+      key: '/admin/modules',
+      icon: <AppstoreOutlined />,
+      label: <Link href={`/admin/modules?tenant=${currentTenantSlug || 'zxqconsulting'}`}>模块使用</Link>,
+    },
+    {
+      key: '/admin/content',
+      icon: <BarChartOutlined />,
+      label: <Link href={`/admin/content?tenant=${currentTenantSlug || 'zxqconsulting'}`}>内容热度</Link>,
+    },
+    {
+      key: '/admin/rfm',
+      icon: <FundOutlined />,
+      label: <Link href={`/admin/rfm?tenant=${currentTenantSlug || 'zxqconsulting'}`}>RFM分析</Link>,
     },
     {
       key: '/admin/analytics',
       icon: <BarChartOutlined />,
-      label: <Link href="/admin/analytics">数据分析</Link>,
+      label: <Link href={`/admin/analytics?tenant=${currentTenantSlug || 'zxqconsulting'}`}>数据分析</Link>,
     },
     {
       key: '/admin/analytics/attribution',
       icon: <FundOutlined />,
-      label: <Link href="/admin/analytics/attribution">归因分析</Link>,
+      label: <Link href={`/admin/analytics/attribution?tenant=${currentTenantSlug || 'zxqconsulting'}`}>归因分析</Link>,
     },
     {
       key: '/admin/tools',
       icon: <ToolOutlined />,
-      label: <Link href="/admin/tools">工具数据</Link>,
+      label: <Link href={`/admin/tools?tenant=${currentTenantSlug || 'zxqconsulting'}`}>工具数据</Link>,
+    },
+    {
+      key: '/admin/chat',
+      icon: <MessageOutlined />,
+      label: <Link href={`/admin/chat?tenant=${currentTenantSlug || 'zero'}`}>聊天记录</Link>,
     },
     {
       key: '/admin/sites',
@@ -115,7 +140,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     {
       key: '/admin/settings',
       icon: <SettingOutlined />,
-      label: <Link href="/admin/settings">系统设置</Link>,
+      label: <Link href={`/admin/settings?tenant=${currentTenantSlug || 'zxqconsulting'}`}>系统设置</Link>,
     },
   ]
 
