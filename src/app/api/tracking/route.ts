@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         case 'tool_complete':
         case 'tool_abandon':
           if (event_data) {
-            await handleToolInteraction(tenantId, event_data as Record<string, unknown>, visitor_id, session_id)
+            await handleToolInteraction(tenantId, { ...event_data, action: event_type } as Record<string, unknown>, visitor_id, session_id)
           }
           break
 
@@ -224,13 +224,13 @@ async function handleToolInteraction(
   visitorId?: string,
   sessionId?: string
 ) {
-  const { tool_name, tool_section, action, input_params, output_result, duration_ms, step_completed, total_steps } = eventData
+  const { tool_name, tool_section, action, input_params, output_result, duration_ms, step_completed, total_steps, module_id } = eventData
 
   await insertToolInteraction({
     tenant_id: tenantId,
     visitor_id: visitorId,
     session_id: sessionId,
-    tool_name: String(tool_name ?? ''),
+    tool_name: String(tool_name ?? module_id ?? ''),
     tool_section: tool_section ? String(tool_section) : undefined,
     action: String(action ?? ''),
     input_params,
