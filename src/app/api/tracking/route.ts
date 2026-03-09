@@ -394,6 +394,7 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
       user_agent: navigator.userAgent,
       event_data: eventData
     };
+    console.log('[Tracking] Sending:', eventType, eventData);
     navigator.sendBeacon
       ? navigator.sendBeacon(trackingUrl, JSON.stringify(data))
       : fetch(trackingUrl, {
@@ -401,7 +402,7 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(data),
           keepalive: true
-        }).catch(function() {});
+        }).catch(function(err) { console.error('[Tracking] Error:', err); });
   }
   
   // 页面浏览事件
@@ -431,6 +432,7 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
   window.zxqTrack = {
     // 通用追踪方法（前端代码调用这个）
     track: function(eventType, eventData) {
+      console.log('[zxqTrack.track]', eventType, eventData);
       track(eventType, eventData || {});
     },
     
