@@ -228,13 +228,16 @@ async function handleToolInteraction(
   visitorId?: string,
   sessionId?: string
 ) {
-  const { tool_name, tool_section, action, input_params, output_result, duration_ms, step_completed, total_steps, module_id } = eventData
+  const { tool_name, tool_section, action, input_params, output_result, duration_ms, step_completed, total_steps, module_id, analysis_mode } = eventData
+
+  // 如果没有 tool_name，使用 analysis_mode 或 module_id
+  const finalToolName = String(tool_name ?? module_id ?? analysis_mode ?? 'ai-analysis')
 
   await insertToolInteraction({
     tenant_id: tenantId,
     visitor_id: visitorId,
     session_id: sessionId,
-    tool_name: String(tool_name ?? module_id ?? ''),
+    tool_name: finalToolName,
     tool_section: tool_section ? String(tool_section) : undefined,
     action: String(action ?? ''),
     input_params,
