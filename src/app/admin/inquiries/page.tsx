@@ -6,7 +6,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { Table, Card, Input, Select, Button, Space, Tag, Form, Drawer, message, Empty } from 'antd'
+import { Table, Card, Input, Select, Button, Space, Tag, Form, Drawer, Modal, message, Empty } from 'antd'
 import { SearchOutlined, PlusOutlined, ExportOutlined, PhoneOutlined, MessageOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -53,6 +53,8 @@ export default function InquiriesPage() {
   const [drawerVisible, setDrawerVisible] = useState(false)
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null)
   const [form] = Form.useForm()
+  const [createModalVisible, setCreateModalVisible] = useState(false)
+  const [createLoading, setCreateLoading] = useState(false)
 
   const fetchInquiries = useCallback(async (status?: string, pg = 1) => {
     setLoading(true)
@@ -81,7 +83,7 @@ export default function InquiriesPage() {
     setSaving(true)
     try {
       const values = form.getFieldsValue()
-      await fetch('/api/admin/inquiries', {
+      await fetch(`/api/admin/inquiries?tenant=${TENANT}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedInquiry.id, ...values }),
@@ -94,6 +96,27 @@ export default function InquiriesPage() {
       console.error(e)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleCreate = async () => {
+    setCreateLoading(true)
+    try {
+      const values = await form.validateFields()
+      await fetch(`/api/admin/inquiries?tenant=${TENANT}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      })
+      message.success('创建成功')
+      setCreateModalVisible(false)
+      form.resetFields()
+      fetchInquiries()
+    } catch (e) {
+      message.error('创建失败')
+      console.error(e)
+    } finally {
+      setCreateLoading(false)
     }
   }
 
@@ -231,8 +254,11 @@ export default function InquiriesPage() {
             <Button icon={<ReloadOutlined />} onClick={() => { setStatusFilter(undefined); setPage(1); fetchInquiries(undefined, 1) }}>
               重置
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建询盘功能开发中')}>新建询盘</Button>
-            <Button icon={<ExportOutlined />} onClick={() => message.info('导出功能开发中')}>导出</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>新建询盘</Button>
+            <Button icon={<ExportOutlined />} onClick={() => {
+              const url = `/api/admin/export?tenant=${TENANT}&type=inquiries`
+              window.open(url, '_blank')
+            }}>导出</Button>
             <span style={{ color: '#888' }}>共 {total} 条询盘</span>
           </Space>
         </div>
@@ -317,6 +343,49 @@ export default function InquiriesPage() {
           </div>
         )}
       </Drawer>
+
+      {/* 新建询盘弹窗 */}
+      <Modal
+        title="新建询盘"
+        open={createModalVisible}
+        onCancel={() => { setCreateModalVisible(false); form.resetFields() }}
+        footer={[
+          <Button key="cancel" onClick={() => setCreateModalVisible(false)}>取消</Button>,
+          <Button key="submit" type="primary" loading={createLoading} onClick={handleCreate}>创建</Button>,
+        ]}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请输入姓名' }]}>
+            <Input placeholder="请输入姓名" />
+          </Form.Item>
+          <Form.Item label="电话" name="phone">
+            <Input placeholder="请输入电话" />
+          </Form.Item>
+          <Form.Item label="邮箱" name="email">
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+          <Form.Item label="公司" name="company">
+            <Input placeholder="请输入公司名称" />
+          </Form.Item>
+          <Form.Item label="产品类型" name="product_type">
+            <Input placeholder="请输入产品类型" />
+          </Form.Item>
+          <Form.Item label="目标市场" name="target_market">
+            <Input placeholder="请输入目标市场" />
+          </Form.Item>
+          <Form.Item label="需求描述" name="message">
+            <TextArea rows={3} placeholder="请输入需求描述" />
+          </Form.Item>
+          <Form.Item label="来源" name="source" initialValue="manual">
+            <Select placeholder="选择来源">
+              <Option value="manual">手动录入</Option>
+              <Option value="website_form">网站表单</Option>
+              <Option value="phone">电话咨询</Option>
+              <Option value="referral">客户推荐</Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

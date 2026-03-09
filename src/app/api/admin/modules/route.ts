@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, isDbConfigured } from '@/lib/db'
+import { getTenantId } from '@/lib/tenant'
 
 // Mock 数据
 const mockModuleStats = {
@@ -15,7 +16,16 @@ const mockModuleStats = {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'zxqconsulting'
+  const tenantSlug = searchParams.get('tenant')
+
+  // 租户验证
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: 'Missing tenant parameter. Please provide a valid tenant slug.' },
+      { status: 401 }
+    )
+  }
+
   const visitorId = searchParams.get('visitor_id')
   const moduleId = searchParams.get('module_id')
 
@@ -27,8 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const tenantRows = await sql`SELECT id FROM public.tenants WHERE slug=${tenantSlug} LIMIT 1`
-    const tenantId = tenantRows[0]?.id
+    const tenantId = await getTenantId(tenantSlug)
     if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
     // 获取模块统计

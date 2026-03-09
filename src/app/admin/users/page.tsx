@@ -201,7 +201,10 @@ export default function UsersPage() {
             />
             <Button type="primary" onClick={handleSearch}>搜索</Button>
             <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
-            <Button type="primary" onClick={() => message.info('导出功能开发中')} icon={<ExportOutlined />}>导出</Button>
+            <Button type="primary" onClick={() => {
+              const url = `/api/admin/export?tenant=${TENANT}&type=users`
+              window.open(url, '_blank')
+            }} icon={<ExportOutlined />}>导出</Button>
             <span style={{ color: '#888' }}>共 {total} 位用户</span>
           </Space>
         </div>

@@ -20,6 +20,7 @@ const mockTenants: Record<string, string> = {
   zxqconsulting: 'tenant_001',
   zero: 'tenant_002',
   demo: 'tenant_003',
+  'import-website': 'tenant_004',
 }
 
 // 处理 CORS 预检请求
@@ -106,6 +107,9 @@ export async function POST(request: NextRequest) {
         case 'tool_output':
         case 'tool_complete':
         case 'tool_abandon':
+        case 'ai_start':
+        case 'ai_complete':
+        case 'ai_abandon':
           if (event_data) {
             await handleToolInteraction(tenantId, { ...event_data, action: event_type } as Record<string, unknown>, visitor_id, session_id)
           }
@@ -422,6 +426,11 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
   
   // 统一追踪对象
   window.zxqTrack = {
+    // 通用追踪方法（前端代码调用这个）
+    track: function(eventType, eventData) {
+      track(eventType, eventData || {});
+    },
+    
     // 页面浏览
     pageView: function(pageData) {
       track('page_view', pageData || {});

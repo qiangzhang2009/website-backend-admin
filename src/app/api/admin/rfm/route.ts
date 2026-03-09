@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, isDbConfigured } from '@/lib/db'
+import { getTenantId } from '@/lib/tenant'
 
 // Mock 数据
 const mockRfmData = [
@@ -15,7 +16,16 @@ const mockRfmData = [
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'zxqconsulting'
+  const tenantSlug = searchParams.get('tenant')
+
+  // 租户验证
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: 'Missing tenant parameter. Please provide a valid tenant slug.' },
+      { status: 401 }
+    )
+  }
+
   const segment = searchParams.get('segment')
 
   if (!isDbConfigured || !sql) {
@@ -32,8 +42,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const tenantRows = await sql`SELECT id FROM public.tenants WHERE slug=${tenantSlug} LIMIT 1`
-    const tenantId = tenantRows[0]?.id
+    const tenantId = await getTenantId(tenantSlug)
     if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
     // 获取 RFM 数据
@@ -96,15 +105,22 @@ export async function GET(request: NextRequest) {
 // 手动触发 RFM 计算
 export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'zxqconsulting'
+  const tenantSlug = searchParams.get('tenant')
+
+  // 租户验证
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: 'Missing tenant parameter. Please provide a valid tenant slug.' },
+      { status: 401 }
+    )
+  }
 
   if (!isDbConfigured || !sql) {
     return NextResponse.json({ success: true, mock: true, message: 'RFM calculation triggered (mock)' })
   }
 
   try {
-    const tenantRows = await sql`SELECT id FROM public.tenants WHERE slug=${tenantSlug} LIMIT 1`
-    const tenantId = tenantRows[0]?.id
+    const tenantId = await getTenantId(tenantSlug)
     if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
     // 计算 RFM 分数

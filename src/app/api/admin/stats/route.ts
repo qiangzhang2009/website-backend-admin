@@ -3,10 +3,19 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
+import { getTenantId } from '@/lib/tenant'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'zxqconsulting'
+  const tenantSlug = searchParams.get('tenant')
+
+  // 租户验证：如果没有提供租户参数，拒绝请求
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: 'Missing tenant parameter. Please provide a valid tenant slug.' },
+      { status: 401 }
+    )
+  }
 
   if (!sql) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
@@ -14,9 +23,10 @@ export async function GET(request: NextRequest) {
 
   try {
     // 租户 ID
-    const tenantRows = await sql`SELECT id FROM public.tenants WHERE slug = ${tenantSlug} LIMIT 1`
-    const tenantId = tenantRows[0]?.id
-    if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+    const tenantId = await getTenantId(tenantSlug)
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+    }
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)

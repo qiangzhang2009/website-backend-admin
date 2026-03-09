@@ -3,6 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, isDbConfigured } from '@/lib/db'
+import { getTenantId } from '@/lib/tenant'
 
 // Mock 数据
 const mockChatData = [
@@ -12,7 +13,15 @@ const mockChatData = [
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'zero'
+  const tenantSlug = searchParams.get('tenant')
+
+  // 租户验证
+  if (!tenantSlug) {
+    return NextResponse.json(
+      { error: 'Missing tenant parameter. Please provide a valid tenant slug.' },
+      { status: 401 }
+    )
+  }
   const page = parseInt(searchParams.get('page') || '1')
   const pageSize = parseInt(searchParams.get('pageSize') || '20')
   const module = searchParams.get('module')
@@ -32,8 +41,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // 获取租户 ID
-    const tenantRows = await sql`SELECT id FROM public.tenants WHERE slug=${tenantSlug} LIMIT 1`
-    const tenantId = tenantRows[0]?.id
+    const tenantId = await getTenantId(tenantSlug)
     if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
     const offset = (page - 1) * pageSize
