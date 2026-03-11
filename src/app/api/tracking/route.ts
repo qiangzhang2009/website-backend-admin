@@ -56,6 +56,17 @@ export async function POST(request: NextRequest) {
       page_title,
       referrer,
       user_agent,
+      // 新增字段
+      device_type,
+      browser,
+      os,
+      screen_resolution,
+      language,
+      traffic_source,
+      geo_country,
+      geo_region,
+      geo_city,
+      geo_isp,
       event_data,
     } = body
 
@@ -90,6 +101,16 @@ export async function POST(request: NextRequest) {
         page_title,
         referrer,
         user_agent,
+        device_type,
+        browser,
+        os,
+        screen_resolution,
+        language,
+        traffic_source,
+        geo_country,
+        geo_region,
+        geo_city,
+        geo_isp,
         event_data,
       })
 
@@ -111,7 +132,9 @@ export async function POST(request: NextRequest) {
         case 'ai_complete':
         case 'ai_abandon':
           if (event_data) {
-            await handleToolInteraction(tenantId, { ...event_data, action: event_type } as Record<string, unknown>, visitor_id, session_id)
+            // 不覆盖已有的 action 字段，保留前端传递的实际动作
+            const actionValue = event_data.action || event_type
+            await handleToolInteraction(tenantId, { ...event_data, action: actionValue } as Record<string, unknown>, visitor_id, session_id)
           }
           break
 
@@ -233,6 +256,70 @@ async function handleToolInteraction(
   // 如果没有 tool_name，使用 analysis_mode 或 module_id
   const finalToolName = String(tool_name ?? module_id ?? analysis_mode ?? 'ai-analysis')
 
+  // 已知的顶层字段（需要排除，避免重复存储）
+  const knownFields = [
+    'tool_name', 'tool_section', 'action', 'input_params', 'output_result',
+    'duration_ms', 'step_completed', 'total_steps', 'module_id', 'analysis_mode',
+    'result_summary', 'ai_result_content', 'ai_result_length'
+  ]
+
+  // 获取所有未知字段
+  const unknownFields = Object.fromEntries(
+    Object.entries(eventData).filter(([key]) => !knownFields.includes(key))
+  )
+
+  // 如果 input_params 和 output_result 是空的，尝试从 eventData 中提取
+  let finalInputParams: Record<string, unknown> = input_params as Record<string, unknown> || {}
+  let finalOutputResult: Record<string, unknown> = output_result as Record<string, unknown> || {}
+
+  // 前端发送的是扁平字段，需要包装成 input_params/output_result 对象
+  if (Object.keys(finalInputParams).length === 0) {
+    finalInputParams = {
+      analysis_mode: eventData.analysis_mode,
+      product_type: eventData.product_type,
+      product_name: eventData.product_name,
+      category_level1: eventData.category_level1,
+      category_level2: eventData.category_level2,
+      target_region: eventData.target_region,
+      selected_market: eventData.selected_market,
+      user_role: eventData.user_role,
+      business_stage: eventData.business_stage,
+      // 新增：捕获其他所有字段（如 tabId, tabName, marketId, marketName, category 等）
+      tab_id: eventData.tabId,
+      tab_name: eventData.tabName,
+      market_id: eventData.marketId,
+      market_name: eventData.marketName,
+      category: eventData.category,
+      productCategory: eventData.productCategory,
+      productType: eventData.productType,
+      budgetRange: eventData.budgetRange,
+      needAgent: eventData.needAgent,
+      needCompliance: eventData.needCompliance,
+      // 动态添加其他未知字段
+      ...unknownFields
+    }
+    // 移除空值
+    Object.keys(finalInputParams).forEach(key => {
+      if (finalInputParams[key] === undefined || finalInputParams[key] === null || finalInputParams[key] === '') {
+        delete finalInputParams[key]
+      }
+    })
+  }
+
+  if (Object.keys(finalOutputResult).length === 0) {
+    finalOutputResult = {
+      result_summary: eventData.result_summary,
+      ai_result_content: eventData.ai_result_content,
+      ai_result_length: eventData.ai_result_length,
+    }
+    // 移除空值
+    Object.keys(finalOutputResult).forEach(key => {
+      if (finalOutputResult[key] === undefined || finalOutputResult[key] === null || finalOutputResult[key] === '') {
+        delete finalOutputResult[key]
+      }
+    })
+  }
+
   await insertToolInteraction({
     tenant_id: tenantId,
     visitor_id: visitorId,
@@ -240,8 +327,8 @@ async function handleToolInteraction(
     tool_name: finalToolName,
     tool_section: tool_section ? String(tool_section) : undefined,
     action: String(action ?? ''),
-    input_params,
-    output_result,
+    input_params: finalInputParams,
+    output_result: finalOutputResult,
     duration_ms: duration_ms ? Number(duration_ms) : undefined,
     step_completed: step_completed ? Number(step_completed) : undefined,
     total_steps: total_steps ? Number(total_steps) : undefined,
