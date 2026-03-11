@@ -18,7 +18,7 @@ dayjs.locale('zh-cn')
 // 从 URL 参数获取当前租户
 function useTenantFromURL() {
   const searchParams = useSearchParams()
-  return searchParams.get('tenant') || ''
+  return searchParams.get('tenant') || 'zxqconsulting'
 }
 
 interface TrafficRow { date: string; visitors: number; pageViews: number }
@@ -26,6 +26,16 @@ interface SourceRow { source: string; count: number }
 interface PageRow { page: string; pv: number; uv: number }
 interface Funnel { visitors: number; toolUsers: number; inquiryUsers: number; converted: number }
 interface ToolStat { tool: string; total: number; completed: number; abandoned: number; avgTime: string; completionRate: number }
+interface AudienceData {
+  summary: { totalVisitors: number; totalSessions: number; totalEvents: number }
+  devices: { type: string; visitors: number; pageViews: number }[]
+  browsers: { name: string; visitors: number; pageViews: number }[]
+  operatingSystems: { name: string; visitors: number; pageViews: number }[]
+  countries: { name: string; visitors: number; pageViews: number }[]
+  cities: { name: string; country: string; visitors: number; pageViews: number }[]
+  trafficSources: { source: string; visitors: number; pageViews: number }[]
+  languages: { name: string; visitors: number; pageViews: number }[]
+}
 
 function AnalyticsPageWithSuspense() {
   const TENANT = useTenantFromURL()
@@ -35,6 +45,7 @@ function AnalyticsPageWithSuspense() {
   const [topPages, setTopPages] = useState<PageRow[]>([])
   const [funnel, setFunnel] = useState<Funnel | null>(null)
   const [toolStats, setToolStats] = useState<ToolStat[]>([])
+  const [audience, setAudience] = useState<AudienceData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,19 +53,21 @@ function AnalyticsPageWithSuspense() {
     const load = async () => {
       setLoading(true)
       try {
-        const [trafficRes, analyticsRes, toolsRes] = await Promise.all([
+        const [trafficRes, analyticsRes, toolsRes, audienceRes] = await Promise.all([
           fetch(`/api/admin/traffic?tenant=${TENANT}&days=${days}`),
           fetch(`/api/admin/analytics?tenant=${TENANT}`),
           fetch(`/api/admin/tools?tenant=${TENANT}`),
+          fetch(`/api/admin/audience?tenant=${TENANT}&days=${days}`),
         ])
-        const [trafficData, analyticsData, toolsData] = await Promise.all([
-          trafficRes.json(), analyticsRes.json(), toolsRes.json(),
+        const [trafficData, analyticsData, toolsData, audienceData] = await Promise.all([
+          trafficRes.json(), analyticsRes.json(), toolsRes.json(), audienceRes.json(),
         ])
         setTraffic(trafficData)
         setSources(analyticsData.sourceStats ?? [])
         setTopPages(analyticsData.topPages ?? [])
         setFunnel(analyticsData.funnel ?? null)
         setToolStats(toolsData.toolStats ?? [])
+        setAudience(audienceData)
       } catch (e) {
         console.error('Analytics load error:', e)
       } finally {
@@ -283,6 +296,147 @@ function AnalyticsPageWithSuspense() {
                   </Card>
                 </Col>
               </Row>
+            ),
+          },
+          {
+            key: 'audience',
+            label: '受众分析',
+            children: audience ? (
+              <Row gutter={[16, 16]}>
+                <Col xs={24} sm={8}>
+                  <Card><Statistic title="总访客" value={audience.summary.totalVisitors} /></Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card><Statistic title="总会话" value={audience.summary.totalSessions} /></Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card><Statistic title="总事件" value={audience.summary.totalEvents} /></Card>
+                </Col>
+                
+                <Col xs={24} lg={12}>
+                  <Card title="设备类型">
+                    {audience.devices.length > 0 ? (
+                      <Table
+                        dataSource={audience.devices}
+                        rowKey="type"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '设备', dataIndex: 'type', key: 'type' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Card title="浏览器">
+                    {audience.browsers.length > 0 ? (
+                      <Table
+                        dataSource={audience.browsers}
+                        rowKey="name"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '浏览器', dataIndex: 'name', key: 'name' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Card title="操作系统">
+                    {audience.operatingSystems.length > 0 ? (
+                      <Table
+                        dataSource={audience.operatingSystems}
+                        rowKey="name"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '系统', dataIndex: 'name', key: 'name' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Card title="流量来源">
+                    {audience.trafficSources.length > 0 ? (
+                      <Table
+                        dataSource={audience.trafficSources}
+                        rowKey="source"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '来源', dataIndex: 'source', key: 'source', 
+                            render: (v: string) => <Tag color={v==='search'?'blue':v==='social'?'green':v==='direct'?'orange':'default'}>{v}</Tag> },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Card title="国家/地区">
+                    {audience.countries.length > 0 ? (
+                      <Table
+                        dataSource={audience.countries}
+                        rowKey="name"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '国家', dataIndex: 'name', key: 'name' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Card title="城市 TOP15">
+                    {audience.cities.length > 0 ? (
+                      <Table
+                        dataSource={audience.cities}
+                        rowKey="name"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '城市', dataIndex: 'name', key: 'name' },
+                          { title: '国家', dataIndex: 'country', key: 'country' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+                <Col xs={24}>
+                  <Card title="语言">
+                    {audience.languages.length > 0 ? (
+                      <Table
+                        dataSource={audience.languages}
+                        rowKey="name"
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          { title: '语言', dataIndex: 'name', key: 'name' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                        ]}
+                      />
+                    ) : <Empty />}
+                  </Card>
+                </Col>
+              </Row>
+            ) : (
+              <Empty description="暂无受众数据，等待用户访问网站后自动记录" />
             ),
           },
         ]}

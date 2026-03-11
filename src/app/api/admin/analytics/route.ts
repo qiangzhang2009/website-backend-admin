@@ -42,12 +42,12 @@ export async function GET(request: NextRequest) {
       // 热门页面
       sql`
         SELECT
-          page_path AS page,
+          page_url AS page,
           COUNT(*) AS pv,
           COUNT(DISTINCT visitor_id) AS uv
         FROM public.tracking_events
-        WHERE tenant_id=${tenantId} AND event_type='page_view' AND page_path IS NOT NULL
-        GROUP BY page_path
+        WHERE tenant_id=${tenantId} AND event_type='page_view' AND page_url IS NOT NULL
+        GROUP BY page_url
         ORDER BY pv DESC
         LIMIT 10
       `,

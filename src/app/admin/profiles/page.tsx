@@ -51,7 +51,8 @@ export default function ProfilesPage() {
   async function fetchProfiles() {
     setLoading(true)
     try {
-      const url = new URL(`/api/admin/profiles?tenant=${tenant}`)
+      const baseUrl = window.location.origin
+      const url = new URL(`/api/admin/profiles?tenant=${tenant}`, baseUrl)
       if (selectedType) url.searchParams.append('profile_type', selectedType)
       
       const res = await fetch(url.toString())

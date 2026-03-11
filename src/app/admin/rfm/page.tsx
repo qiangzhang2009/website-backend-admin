@@ -55,7 +55,8 @@ export default function RfmPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const url = new URL(`/api/admin/rfm?tenant=${tenant}`)
+      const baseUrl = window.location.origin
+      const url = new URL(`/api/admin/rfm?tenant=${tenant}`, baseUrl)
       if (selectedSegment) url.searchParams.append('segment', selectedSegment)
       
       const res = await fetch(url.toString())

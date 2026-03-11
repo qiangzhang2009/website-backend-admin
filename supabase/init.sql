@@ -160,6 +160,20 @@ CREATE TABLE IF NOT EXISTS public.tracking_events (
     page_title TEXT,
     referrer TEXT,
     user_agent TEXT,
+    -- 设备信息
+    device_type TEXT,
+    browser TEXT,
+    os TEXT,
+    screen_resolution TEXT,
+    language TEXT,
+    -- 访问来源
+    traffic_source TEXT,
+    -- 地理位置
+    geo_country TEXT,
+    geo_region TEXT,
+    geo_city TEXT,
+    geo_isp TEXT,
+    -- 事件数据
     event_data JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

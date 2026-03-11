@@ -40,7 +40,8 @@ export default function ContentPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const url = new URL(`/api/admin/content?tenant=${tenant}`)
+      const baseUrl = window.location.origin
+      const url = new URL(`/api/admin/content?tenant=${tenant}`, baseUrl)
       if (contentType) url.searchParams.append('type', contentType)
       
       const res = await fetch(url.toString())
@@ -87,15 +88,15 @@ export default function ContentPage() {
       {/* 统计概览 */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{summary.totalViews.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-blue-600">{(summary.totalViews || 0).toLocaleString()}</div>
           <div className="text-sm text-gray-500">总浏览量</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-green-600">{summary.totalUniqueViewers.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-green-600">{(summary.totalUniqueViewers || 0).toLocaleString()}</div>
           <div className="text-sm text-gray-500">独立访客</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-purple-600">{summary.totalInteractions.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-purple-600">{(summary.totalInteractions || 0).toLocaleString()}</div>
           <div className="text-sm text-gray-500">互动次数</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
@@ -180,17 +181,17 @@ export default function ContentPage() {
                     <TypeBadge type={item.contentType} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-blue-600 font-semibold">{item.viewCount.toLocaleString()}</span>
+                    <span className="text-blue-600 font-semibold">{(item.viewCount || 0).toLocaleString()}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {item.uniqueViewers.toLocaleString()}
+                    {(item.uniqueViewers || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                     {formatDuration(item.avgDuration)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={item.interactionCount > 0 ? 'text-purple-600' : 'text-gray-400'}>
-                      {item.interactionCount.toLocaleString()}
+                      {(item.interactionCount || 0).toLocaleString()}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -223,7 +224,7 @@ export default function ContentPage() {
                   <div className="text-xs text-gray-500">{item.contentType}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-blue-600">{item.viewCount.toLocaleString()}</div>
+                  <div className="font-semibold text-blue-600">{(item.viewCount || 0).toLocaleString()}</div>
                   <div className="text-xs text-gray-500">浏览</div>
                 </div>
               </div>

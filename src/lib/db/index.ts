@@ -43,17 +43,33 @@ export async function insertTrackingEvent(data: {
   page_title?: string
   referrer?: string
   user_agent?: string
+  device_type?: string
+  browser?: string
+  os?: string
+  screen_resolution?: string
+  language?: string
+  traffic_source?: string
+  geo_country?: string
+  geo_region?: string
+  geo_city?: string
+  geo_isp?: string
   event_data?: unknown
 }) {
   if (!sql) return null
 
   const rows = await sql`
     INSERT INTO public.tracking_events
-      (tenant_id, event_type, session_id, visitor_id, website_url, page_url, page_title, referrer, user_agent, event_data)
+      (tenant_id, event_type, session_id, visitor_id, website_url, page_url, page_title, referrer, user_agent, 
+       device_type, browser, os, screen_resolution, language, traffic_source, 
+       geo_country, geo_region, geo_city, geo_isp, event_data)
     VALUES
       (${data.tenant_id}, ${data.event_type}, ${data.session_id ?? null}, ${data.visitor_id ?? null},
        ${data.website_url ?? null}, ${data.page_url ?? null}, ${data.page_title ?? null},
-       ${data.referrer ?? null}, ${data.user_agent ?? null}, ${JSON.stringify(data.event_data ?? {})})
+       ${data.referrer ?? null}, ${data.user_agent ?? null},
+       ${data.device_type ?? null}, ${data.browser ?? null}, ${data.os ?? null}, 
+       ${data.screen_resolution ?? null}, ${data.language ?? null}, ${data.traffic_source ?? null},
+       ${data.geo_country ?? null}, ${data.geo_region ?? null}, ${data.geo_city ?? null}, ${data.geo_isp ?? null},
+       ${JSON.stringify(data.event_data ?? {})})
     RETURNING id
   `
   return rows[0] ?? null

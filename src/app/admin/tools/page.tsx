@@ -18,7 +18,7 @@ dayjs.locale('zh-cn')
 // 从 URL 参数获取当前租户
 function useTenantFromURL() {
   const searchParams = useSearchParams()
-  return searchParams.get('tenant') || ''
+  return searchParams.get('tenant') || 'zxqconsulting'
 }
 
 interface ToolStat {
@@ -37,6 +37,43 @@ interface RecentInteraction {
   created_at: string
   input_params?: Record<string, any>
   output_result?: Record<string, any>
+}
+
+// 工具名称映射
+const TOOL_NAMES: Record<string, string> = {
+  ai_chat: 'AI智能对话',
+  bazi: '八字算命',
+  zhanbu: '占卜问卦',
+  tarot: '塔罗牌',
+  fengshui: '风水布局',
+  dream: '周公解梦',
+  zodiac: '星座运势',
+  mbti: 'MBTI测试',
+  palm: '手相分析',
+  draw: '抽签',
+  naming: '宝宝起名',
+  company_naming: '公司起名',
+  marriage: '婚配配对',
+  huangdi: '黄帝内经',
+  lifenumber: '生命灵数',
+  ziwei: '紫微斗数',
+  zhouyi: '周易预测',
+  luckyday: '吉日选择',
+  digital: '数字命理',
+  daodejing: '道德经',
+  question: '问卦',
+  // 出海工具
+  market: '市场选择器',
+  cost: '成本计算器',
+  policy: '政策查询',
+  decision: '决策工作台',
+  import: '进口商品分析',
+  export: '出口市场分析',
+  // 页面
+  home: '首页',
+  about: '关于我们',
+  contact: '联系我们',
+  tools: '工具列表',
 }
 
 export default function ToolsPage() {
@@ -66,7 +103,7 @@ export default function ToolsPage() {
   }, [TENANT])
 
   const columnConfig = {
-    data: toolStats,
+    data: toolStats.map(t => ({ ...t, tool: TOOL_NAMES[t.tool] || t.tool })),
     xField: 'tool',
     yField: 'total',
     height: 300,
@@ -115,7 +152,7 @@ export default function ToolsPage() {
                     title: '工具名称',
                     dataIndex: 'tool',
                     key: 'tool',
-                    render: (t: string) => <Tag color="blue">{t}</Tag>,
+                    render: (t: string) => <Tag color="blue">{TOOL_NAMES[t] || t}</Tag>,
                   },
                   { title: '总使用次数', dataIndex: 'total', key: 'total', sorter: (a: ToolStat, b: ToolStat) => a.total - b.total },
                   {
@@ -165,7 +202,7 @@ export default function ToolsPage() {
                     title: '工具',
                     dataIndex: 'tool_name',
                     key: 'tool_name',
-                    render: (v: string) => <Tag color="blue">{v}</Tag>,
+                    render: (v: string) => <Tag color="blue">{TOOL_NAMES[v] || v}</Tag>,
                   },
                   {
                     title: '动作',
@@ -210,7 +247,7 @@ export default function ToolsPage() {
       </Row>
 
       <Modal
-        title={`工具使用详情 - ${selectedRecord?.tool_name}`}
+        title={`工具使用详情 - ${TOOL_NAMES[selectedRecord?.tool_name || ''] || selectedRecord?.tool_name}`}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         width={700}

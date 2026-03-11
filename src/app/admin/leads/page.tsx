@@ -18,7 +18,7 @@ dayjs.locale('zh-cn')
 // 从 URL 参数获取当前租户
 function useTenantFromURL() {
   const searchParams = useSearchParams()
-  return searchParams.get('tenant') || ''
+  return searchParams.get('tenant') || 'zxqconsulting'
 }
 
 interface Lead {
