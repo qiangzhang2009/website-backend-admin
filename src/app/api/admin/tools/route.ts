@@ -61,13 +61,8 @@ export async function GET(request: NextRequest) {
         action: r.action,
         visitor_id: r.visitor_id,
         created_at: r.created_at,
-        // 调试：确保返回原始数据
         input_params: r.input_params,
         output_result: r.output_result,
-        _debug: { 
-          input_raw: JSON.stringify(r.input_params?.slice?.(0, 100) ?? r.input_params), 
-          output_raw: JSON.stringify(r.output_result?.slice?.(100) ?? r.output_result) 
-        }
       })),
     })
   } catch (error) {
