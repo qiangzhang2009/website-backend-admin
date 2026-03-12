@@ -1,12 +1,12 @@
 /**
- * 工具数据页面 - 真实数据版
+ * 工具数据页面 - 真实数据版 - 支持分页
  */
 
 'use client'
 
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Card, Row, Col, Table, Tag, Space, Select, Spin, Progress, Empty, message, Modal, Button } from 'antd'
+import { Card, Row, Col, Table, Tag, Space, Select, Spin, Progress, Empty, message, Modal, Button, Pagination, DatePicker } from 'antd'
 import { Column } from '@ant-design/charts'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -14,6 +14,8 @@ import 'dayjs/locale/zh-cn'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
+
+const { RangePicker } = DatePicker
 
 // 从 URL 参数获取当前租户
 function useTenantFromURL() {
@@ -37,6 +39,13 @@ interface RecentInteraction {
   created_at: string
   input_params?: Record<string, any>
   output_result?: Record<string, any>
+}
+
+interface PaginationInfo {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
 }
 
 // 工具名称映射
@@ -69,6 +78,10 @@ const TOOL_NAMES: Record<string, string> = {
   decision: '决策工作台',
   import: '进口商品分析',
   export: '出口市场分析',
+  // 分析工具
+  analysis_tab: '市场分析',
+  feasibility_analysis: '可行性分析',
+  full_analysis: '完整分析',
   // 页面
   home: '首页',
   about: '关于我们',
@@ -84,23 +97,69 @@ export default function ToolsPage() {
   const [selectedRecord, setSelectedRecord] = useState<RecentInteraction | null>(null)
   const [modalVisible, setModalVisible] = useState(false)
 
+  // 分页状态
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+  })
+
+  // 筛选状态
+  const [selectedTool, setSelectedTool] = useState<string>('all')
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
+
+  // 加载数据
+  const loadData = async (page: number = 1, tool: string = selectedTool) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        tenant: TENANT,
+        page: page.toString(),
+        pageSize: '20',
+      })
+      if (tool && tool !== 'all') {
+        params.set('tool', tool)
+      }
+
+      const res = await fetch(`/api/admin/tools?${params}`)
+      const data = await res.json()
+      setToolStats(data.toolStats ?? [])
+      setRecentInteractions(data.recentInteractions ?? [])
+      if (data.pagination) {
+        setPagination(data.pagination)
+      }
+    } catch (e) {
+      console.error('Tools load error:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!TENANT) return
-    const load = async () => {
-      setLoading(true)
-      try {
-        const res = await fetch(`/api/admin/tools?tenant=${TENANT}`)
-        const data = await res.json()
-        setToolStats(data.toolStats ?? [])
-        setRecentInteractions(data.recentInteractions ?? [])
-      } catch (e) {
-        console.error('Tools load error:', e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    loadData(1)
   }, [TENANT])
+
+  // 分页变化
+  const handlePageChange = (page: number) => {
+    loadData(page)
+  }
+
+  // 工具筛选变化
+  const handleToolChange = (tool: string) => {
+    setSelectedTool(tool)
+    loadData(1, tool)
+  }
+
+  // 获取工具选项
+  const toolOptions = [
+    { value: 'all', label: '全部工具' },
+    ...toolStats.map(t => ({
+      value: t.tool,
+      label: TOOL_NAMES[t.tool] || t.tool
+    }))
+  ]
 
   const columnConfig = {
     data: toolStats.map(t => ({ ...t, tool: TOOL_NAMES[t.tool] || t.tool })),
@@ -110,24 +169,25 @@ export default function ToolsPage() {
     label: { position: 'top' as const },
   }
 
-  if (loading) {
+  if (loading && recentInteractions.length === 0) {
     return <div style={{ textAlign: 'center', padding: '80px 0' }}><Spin size="large" /></div>
   }
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0 }}>工具数据</h2>
-        <Space>
-          <Select defaultValue="all" style={{ width: 110 }}
-            onChange={(value) => message.info(`筛选功能开发中: ${value}`)}
-            options={[
-              { value: 'all', label: '全部工具' },
-              { value: 'ai_chat', label: 'AI聊天' },
-              { value: 'bazi', label: '八字算命' },
-              { value: 'zhanbu', label: '占卜' },
-            ]}
+        <Space wrap>
+          <Select
+            value={selectedTool}
+            style={{ width: 150 }}
+            onChange={handleToolChange}
+            options={toolOptions}
+            placeholder="选择工具"
           />
+          <Button onClick={() => loadData(1)} loading={loading}>
+            刷新
+          </Button>
         </Space>
       </div>
 
@@ -190,56 +250,85 @@ export default function ToolsPage() {
         </Col>
 
         <Col xs={24}>
-          <Card title="最新工具使用记录（最近20条）">
-            {recentInteractions.length > 0 ? (
-              <Table
-                dataSource={recentInteractions}
-                rowKey={(r, i) => `${r.tool_name}-${i}`}
-                pagination={false}
-                size="small"
-                columns={[
-                  {
-                    title: '工具',
-                    dataIndex: 'tool_name',
-                    key: 'tool_name',
-                    render: (v: string) => <Tag color="blue">{TOOL_NAMES[v] || v}</Tag>,
-                  },
-                  {
-                    title: '动作',
-                    dataIndex: 'action',
-                    key: 'action',
-                    render: (v: string) => {
-                      const colorMap: Record<string, string> = { complete: 'green', submit: 'green', start: 'blue', abandon: 'red', input: 'orange' }
-                      return <Tag color={colorMap[v] || 'default'}>{v}</Tag>
+          <Card
+            title={`工具使用记录（${pagination.total}条）`}
+            extra={
+              <span style={{ fontSize: 12, color: '#999' }}>
+                第 {pagination.page} / {pagination.totalPages} 页
+              </span>
+            }
+          >
+            {loading && <div style={{ textAlign: 'center', padding: 20 }}><Spin /></div>}
+
+            {!loading && recentInteractions.length > 0 && (
+              <>
+                <Table
+                  dataSource={recentInteractions}
+                  rowKey={(r, i) => `${r.tool_name}-${r.created_at}-${i}`}
+                  pagination={false}
+                  size="small"
+                  columns={[
+                    {
+                      title: '工具',
+                      dataIndex: 'tool_name',
+                      key: 'tool_name',
+                      render: (v: string) => <Tag color="blue">{TOOL_NAMES[v] || v}</Tag>,
                     },
-                  },
-                  {
-                    title: '访客ID',
-                    dataIndex: 'visitor_id',
-                    key: 'visitor_id',
-                    render: (v: string) => <span style={{ fontSize: 12, color: '#999' }}>{v?.slice(0, 10)}...</span>,
-                  },
-                  {
-                    title: '时间',
-                    dataIndex: 'created_at',
-                    key: 'created_at',
-                    render: (v: string) => dayjs(v).fromNow(),
-                  },
-                  {
-                    title: '操作',
-                    key: 'detail',
-                    render: (_: any, record: RecentInteraction) => (
-                      <Button type="link" size="small" onClick={() => {
-                        setSelectedRecord(record)
-                        setModalVisible(true)
-                      }}>
-                        详情
-                      </Button>
-                    ),
-                  },
-                ]}
-              />
-            ) : (
+                    {
+                      title: '动作',
+                      dataIndex: 'action',
+                      key: 'action',
+                      render: (v: string) => {
+                        const colorMap: Record<string, string> = {
+                          complete: 'green', submit: 'green', view: 'green', done: 'green',
+                          start: 'blue', switch: 'blue', select: 'blue',
+                          abandon: 'red', cancel: 'red', reset: 'red',
+                          input: 'orange'
+                        }
+                        return <Tag color={colorMap[v] || 'default'}>{v}</Tag>
+                      },
+                    },
+                    {
+                      title: '访客ID',
+                      dataIndex: 'visitor_id',
+                      key: 'visitor_id',
+                      render: (v: string) => <span style={{ fontSize: 12, color: '#999' }}>{v?.slice(0, 10) || '-'}</span>,
+                    },
+                    {
+                      title: '时间',
+                      dataIndex: 'created_at',
+                      key: 'created_at',
+                      render: (v: string) => dayjs(v).format('MM-DD HH:mm:ss'),
+                    },
+                    {
+                      title: '操作',
+                      key: 'detail',
+                      render: (_: any, record: RecentInteraction) => (
+                        <Button type="link" size="small" onClick={() => {
+                          setSelectedRecord(record)
+                          setModalVisible(true)
+                        }}>
+                          详情
+                        </Button>
+                      ),
+                    },
+                  ]}
+                />
+
+                <div style={{ marginTop: 16, textAlign: 'right' }}>
+                  <Pagination
+                    current={pagination.page}
+                    pageSize={pagination.pageSize}
+                    total={pagination.total}
+                    onChange={handlePageChange}
+                    showSizeChanger={false}
+                    showTotal={(total) => `共 ${total} 条记录`}
+                  />
+                </div>
+              </>
+            )}
+
+            {!loading && recentInteractions.length === 0 && (
               <Empty description="暂无记录" />
             )}
           </Card>
@@ -258,7 +347,7 @@ export default function ToolsPage() {
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Card size="small" title="基本信息">
-                  <p><strong>访客ID:</strong> {selectedRecord.visitor_id}</p>
+                  <p><strong>访客ID:</strong> {selectedRecord.visitor_id || '-'}</p>
                   <p><strong>动作:</strong> <Tag color={selectedRecord.action === 'complete' ? 'green' : 'red'}>{selectedRecord.action}</Tag></p>
                   <p><strong>时间:</strong> {dayjs(selectedRecord.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
                 </Card>
