@@ -466,6 +466,91 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
   var sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   var currentModule = null;
   var conversationTurns = 0;
+
+  // 获取设备信息
+  function getDeviceInfo() {
+    var ua = navigator.userAgent || '';
+    var deviceType = 'desktop';
+    if (/tablet|ipad|playbook|silk/i.test(ua)) {
+      deviceType = 'tablet';
+    } else if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile/i.test(ua)) {
+      deviceType = 'mobile';
+    }
+
+    var browser = 'unknown';
+    if (ua.indexOf('Firefox') > -1) {
+      browser = 'Firefox';
+    } else if (ua.indexOf('Chrome') > -1) {
+      browser = 'Chrome';
+    } else if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
+      browser = 'Safari';
+    } else if (ua.indexOf('Edge') > -1) {
+      browser = 'Edge';
+    }
+
+    var os = 'unknown';
+    if (ua.indexOf('Windows') > -1) {
+      os = 'Windows';
+    } else if (ua.indexOf('Mac') > -1) {
+      os = 'macOS';
+    } else if (ua.indexOf('Linux') > -1) {
+      os = 'Linux';
+    } else if (ua.indexOf('Android') > -1) {
+      os = 'Android';
+    } else if (ua.indexOf('iOS') > -1 || ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) {
+      os = 'iOS';
+    }
+
+    return {
+      deviceType: deviceType,
+      browser: browser,
+      os: os,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      language: navigator.language || 'unknown'
+    };
+  }
+
+  // 获取访问来源
+  function getTrafficSource() {
+    var referrer = document.referrer || '';
+    if (!referrer) return 'direct';
+
+    try {
+      var refUrl = new URL(referrer);
+      var hostname = refUrl.hostname;
+
+      var searchEngines = ['google', 'bing', 'yahoo', 'baidu', 'yandex', 'duckduckgo', 'sogou'];
+      if (searchEngines.some(function(se) { return hostname.indexOf(se) > -1; })) {
+        return 'search';
+      }
+
+      var socialMedia = ['facebook', 'twitter', 'linkedin', 'instagram', 'youtube', 'tiktok', 'weibo', 'zhihu'];
+      if (socialMedia.some(function(sm) { return hostname.indexOf(sm) > -1; })) {
+        return 'social';
+      }
+
+      return 'referral';
+    } catch (e) {
+      return 'direct';
+    }
+  }
+
+  // 获取地理信息（异步）
+  var geoInfo = {};
+  fetch('https://ipapi.co/json/')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      geoInfo = {
+        country: data.country_name || data.country || '',
+        region: data.region || '',
+        city: data.city || '',
+        isp: data.org || ''
+      };
+    })
+    .catch(function() {});
+
+  var deviceInfo = getDeviceInfo();
   
   function track(eventType, eventData) {
     var data = {
@@ -479,6 +564,20 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
       page_title: document.title,
       referrer: document.referrer,
       user_agent: navigator.userAgent,
+      // 设备信息
+      device_type: deviceInfo.deviceType,
+      browser: deviceInfo.browser,
+      os: deviceInfo.os,
+      screen_resolution: deviceInfo.screenWidth + 'x' + deviceInfo.screenHeight,
+      language: deviceInfo.language,
+      // 访问来源
+      traffic_source: getTrafficSource(),
+      // 地理信息
+      geo_country: geoInfo.country || '',
+      geo_region: geoInfo.region || '',
+      geo_city: geoInfo.city || '',
+      geo_isp: geoInfo.isp || '',
+      // 事件数据
       event_data: eventData
     };
     console.log('[Tracking] Sending:', eventType, eventData);

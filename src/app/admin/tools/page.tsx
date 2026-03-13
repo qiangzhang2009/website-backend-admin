@@ -191,7 +191,7 @@ export default function ToolsPage() {
   }
 
   // 自定义日期选择
-  const handleDateRangeChange = (dates: null | [dayjs.Dayjs, dayjs.Dayjs]) => {
+  const handleDateRangeChange = (dates: any) => {
     if (dates) {
       setDatePreset('')
       setDateRange(dates)
@@ -319,8 +319,8 @@ export default function ToolsPage() {
     <div>
       {/* 顶部筛选栏 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <Space wrap style={{ width: '100%' }} justify="space-between">
-          <Space wrap>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <Select
               value={datePreset}
               style={{ width: 120 }}
@@ -341,7 +341,7 @@ export default function ToolsPage() {
               options={toolOptions}
               placeholder="选择工具"
             />
-          </Space>
+          </div>
           <Space>
             <Button onClick={() => loadData(1, selectedTool, dateRange)} loading={loading}>
               刷新
@@ -352,7 +352,7 @@ export default function ToolsPage() {
               </Button>
             </Dropdown>
           </Space>
-        </Space>
+        </div>
       </Card>
 
       {/* 统计概览 */}
