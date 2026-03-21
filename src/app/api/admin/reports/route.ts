@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
 
     const dailyTrend = await sql`
       SELECT 
-        DATE(created_at AT TIME ZONE 'Asia/Shanghai') AS date,
+        TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Shanghai'), 'YYYY-MM-DD') AS date,
         COUNT(DISTINCT visitor_id) AS visitors,
         COUNT(*) AS page_views,
         COUNT(DISTINCT session_id) AS sessions
@@ -184,19 +184,19 @@ export async function GET(request: NextRequest) {
         AND created_at >= ${startStr}
         AND created_at < ${endStr}
         AND event_type = 'page_view'
-      GROUP BY DATE(created_at AT TIME ZONE 'Asia/Shanghai')
+      GROUP BY TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Shanghai'), 'YYYY-MM-DD')
       ORDER BY date ASC
     `
 
     const dailyInquiries = await sql`
       SELECT 
-        DATE(created_at AT TIME ZONE 'Asia/Shanghai') AS date,
+        TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Shanghai'), 'YYYY-MM-DD') AS date,
         COUNT(*) AS inquiries
       FROM public.inquiries
       WHERE tenant_id = ${tenantId}
         AND created_at >= ${startStr}
         AND created_at < ${endStr}
-      GROUP BY DATE(created_at AT TIME ZONE 'Asia/Shanghai')
+      GROUP BY TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Shanghai'), 'YYYY-MM-DD')
     `
 
     const inquiryMap = new Map<string, number>()

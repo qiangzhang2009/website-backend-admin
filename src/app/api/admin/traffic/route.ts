@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const rows = await sql`
       SELECT
-        DATE(created_at AT TIME ZONE 'Asia/Shanghai') AS date,
+        TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Shanghai'), 'YYYY-MM-DD') AS date,
         COUNT(*) AS page_views,
         COUNT(DISTINCT visitor_id) AS visitors
       FROM public.tracking_events
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     `
 
     return NextResponse.json(rows.map(r => ({
-      date: String(r.date).split('T')[0],
+      date: String(r.date),
       visitors: Number(r.visitors),
       pageViews: Number(r.page_views),
     })))
