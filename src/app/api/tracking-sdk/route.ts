@@ -5,18 +5,44 @@ import { NextResponse } from 'next/server';
 const SDK_SOURCE = `/**
  * 统一网站追踪 SDK - 增强版
  * 适用于: zxqconsulting-web1, zero2, import-website
- * 版本: 1.1.0
+ * 版本: 1.2.0
  * 包含完整的 duration 字段采集
+ * 支持跨域追踪：自动从 SDK 脚本 URL 提取后端 origin
  */
 (function(global) {
   'use strict';
   
   var config = { 
     tenantSlug: '', 
-    apiUrl: '/api/tracking', 
+    apiUrl: '/api/tracking', // 默认相对路径（SDK 自调用时）
     sessionTimeout: 1800000, // 30分钟
-    debug: false 
+    debug: false,
+    _backendOrigin: '' // 从 SDK 脚本 URL 提取的后端 origin
   };
+  
+  // 立即从加载的 SDK 脚本 URL 提取后端 origin
+  (function detectBackendOrigin() {
+    var scripts = global.document && global.document.getElementsByTagName('script');
+    if (!scripts) return;
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].src || '';
+      if (src.indexOf('tracking-sdk') !== -1 && src.indexOf('backend-admin') !== -1) {
+        try {
+          var u = new global.URL(src);
+          config._backendOrigin = u.origin;
+        } catch(e) {}
+        break;
+      }
+    }
+  })();
+  
+  // 获取完整的 API URL（优先使用 _backendOrigin，兜底相对路径）
+  function getApiUrl() {
+    if (config._backendOrigin) {
+      return config._backendOrigin + '/api/tracking';
+    }
+    return config.apiUrl;
+  }
   
   var visitorId = '', sessionId = '', sessionStartTime = 0, pageStartTime = 0;
   var toolStartTimes = {}; // 记录每个工具的开始时间
@@ -122,8 +148,9 @@ const SDK_SOURCE = `/**
       event_data: eventData || {}
     };
     if (config.debug) console.log('[ZxqTrack]', eventType, payload);
-    if (navigator.sendBeacon) { var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' }); navigator.sendBeacon(config.apiUrl, blob); }
-    else { fetch(config.apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(function() {}); }
+    var finalApiUrl = getApiUrl();
+    if (navigator.sendBeacon) { var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' }); navigator.sendBeacon(finalApiUrl, blob); }
+    else { fetch(finalApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(function() {}); }
   }
   
   // 页面浏览追踪
@@ -319,7 +346,8 @@ const SDK_SOURCE = `/**
   // 初始化
   function init(options) {
     config.tenantSlug = options.tenant;
-    config.apiUrl = options.apiUrl || '/api/tracking';
+    // 只在 SDK 被 JS 代码手动调用时设置 apiUrl（不会覆盖自动检测的 _backendOrigin）
+    if (options.apiUrl) config.apiUrl = options.apiUrl;
     config.debug = options.debug || false;
     getVisitorId();
     getSessionId();
@@ -365,23 +393,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const tenant = searchParams.get('tenant') || 'zxqconsulting';
   
-  // 根据租户获取对应的 API URL（使用最新部署的版本）
-  // 当前最新部署: website-backend-admin-cq6hk2w6e-johnzhangs-projects-50e83ec4.vercel.app
-  const currentApiUrl = 'https://website-backend-admin-cq6hk2w6e-johnzhangs-projects-50e83ec4.vercel.app/api/tracking';
-  const tenantApiUrls: Record<string, string> = {
-    'zxqconsulting': currentApiUrl,
-    'zero': currentApiUrl,
-    'import-website': currentApiUrl,
-    'global2china': currentApiUrl,
-    'africa': currentApiUrl,
-  };
-  
-  const apiUrl = tenantApiUrls[tenant] || tenantApiUrls['zxqconsulting'];
-  
-  // 注入配置
-  const configuredSdk = SDK_SOURCE
-    .replace("apiUrl: '/api/tracking'", `apiUrl: '${apiUrl}'`)
-    .replace("tenantSlug: ''", `tenantSlug: '${tenant}'`);
+  // 注入租户 slug（apiUrl 由 SDK 的 detectBackendOrigin() 自动从脚本 src URL 检测，无需注入）
+  const configuredSdk = SDK_SOURCE.replace("tenantSlug: ''", `tenantSlug: '${tenant}'`);
 
   return new Response(configuredSdk, {
     headers: {
