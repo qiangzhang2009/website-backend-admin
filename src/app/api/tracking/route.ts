@@ -53,11 +53,29 @@ async function ensureTenantExists(slug: string): Promise<string | null> {
   }
 }
 
+// 允许的跨域来源列表（追踪 SDK 可能从这些域名加载）
+const ALLOWED_ORIGINS = [
+  'https://africa.zxqconsulting.com',
+  'https://global2china.zxqconsulting.com',
+  'https://zero.zxqconsulting.com',
+  'https://www.zxqconsulting.com',
+]
+
+// 获取动态 CORS origin（根据请求来源动态设置，避免 * 通配符与 credentials 冲突）
+function getCorsOrigin(request: NextRequest): string {
+  const requestOrigin = request.headers.get('origin')
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin
+  }
+  return ALLOWED_ORIGINS[0] ?? '*'
+}
+
 // 处理 CORS 预检请求
-export async function OPTIONS() {
+export async function OPTIONS(request: NextRequest) {
+  const origin = getCorsOrigin(request)
   return new NextResponse(null, {
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
@@ -65,9 +83,10 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  // 添加 CORS 头
+  // 动态获取 CORS origin（避免 * 与 sendBeacon/fetch keepalive credentials 冲突）
+  const origin = getCorsOrigin(request)
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   }
