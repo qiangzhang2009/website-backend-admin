@@ -9,10 +9,12 @@ import { useState, useEffect } from 'react'
 import { Card, Row, Col, Tabs, Table, Tag, Select, Space, Radio, DatePicker, Spin, Empty } from 'antd'
 import { Column, Line, Funnel } from '@ant-design/charts'
 import dayjs from 'dayjs'
+import { useTheme } from '@/components/AdminLayout'
 
 const { RangePicker } = DatePicker
 
 export default function AttributionPage() {
+  const { textMuted, textSecondary } = useTheme()
   const [activeTab, setActiveTab] = useState('funnel')
   const [attributionModel, setAttributionModel] = useState('first')
   const [loading, setLoading] = useState(true)
@@ -61,7 +63,9 @@ export default function AttributionPage() {
     xField: 'stage',
     yField: 'count',
     label: {
-      position: 'middle' as const,
+      // AntV G2Plot Funnel 支持：'left' | 'right' | 'top' | 'bottom' | 'inside' | 'outside' 等
+      // 'middle' 会在运行时触发 Unknown position: middle
+      position: 'inside' as const,
       content: (data: { count: number; rate: number }) => `${data.count}\n(${data.rate}%)`,
     },
     conversionTag: false,
@@ -139,7 +143,7 @@ export default function AttributionPage() {
     return (
       <div style={{ textAlign: 'center', padding: '80px 0' }}>
         <Spin size="large" />
-        <div style={{ marginTop: 16, color: '#999' }}>加载数据中...</div>
+        <div style={{ marginTop: 16, color: textMuted }}>加载数据中...</div>
       </div>
     )
   }
@@ -150,7 +154,7 @@ export default function AttributionPage() {
         <h2 style={{ margin: 0 }}>转化漏斗与归因分析</h2>
         <Space>
           {realData && (
-            <div style={{ fontSize: 12, color: '#666', marginRight: 16 }}>
+            <div style={{ fontSize: 12, color: textSecondary, marginRight: 16 }}>
               统计周期：最近30天 | 访客数：{summary.totalVisitors} | 转化率：{summary.conversionRate}%
             </div>
           )}

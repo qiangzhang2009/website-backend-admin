@@ -4,6 +4,7 @@
  */
 
 import AdminLayout from '@/components/AdminLayout'
+import AdminAuthGate from '@/components/AdminAuthGate'
 
 export default function AdminLayoutRoot({
   children,
@@ -11,8 +12,10 @@ export default function AdminLayoutRoot({
   children: React.ReactNode
 }) {
   return (
-    <AdminLayout>
-      {children}
-    </AdminLayout>
+    <AdminAuthGate>
+      <AdminLayout>
+        {children}
+      </AdminLayout>
+    </AdminAuthGate>
   )
 }

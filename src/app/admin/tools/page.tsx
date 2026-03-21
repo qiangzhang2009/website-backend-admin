@@ -11,6 +11,8 @@ import { Column, Line } from '@ant-design/charts'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
+import { useTheme } from '@/components/AdminLayout'
+import { formatInputParams } from '@/lib/params-normalize'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
@@ -126,6 +128,7 @@ function getDateRange(preset: string): [dayjs.Dayjs, dayjs.Dayjs] {
 
 export default function ToolsPage() {
   const TENANT = useTenantFromURL()
+  const { isDark, chartColors, textPrimary, textSecondary, textMuted, infoColor, successColor, errorColor, warningColor } = useTheme()
   const [toolStats, setToolStats] = useState<ToolStat[]>([])
   const [trendData, setTrendData] = useState<TrendData[]>([])
   const [recentInteractions, setRecentInteractions] = useState<RecentInteraction[]>([])
@@ -300,7 +303,10 @@ export default function ToolsPage() {
     yField: 'count',
     height: 200,
     smooth: true,
-    areaStyle: { fill: 'l(270) 0:#fff 1:#1890ff' },
+    areaStyle: { fill: `l(270) 0:${isDark ? '#1f2937' : '#fff'} 1:${infoColor}` },
+    xAxis: { label: { style: { fill: textSecondary } } },
+    yAxis: { label: { style: { fill: textSecondary } } },
+    theme: isDark ? 'classicDark' : 'classic',
   }
 
   const columnConfig = {
@@ -308,7 +314,11 @@ export default function ToolsPage() {
     xField: 'tool',
     yField: 'total',
     height: 250,
-    label: { position: 'top' as const },
+    label: { position: 'top' as const, style: { fill: textSecondary } },
+    xAxis: { label: { style: { fill: textSecondary } } },
+    yAxis: { label: { style: { fill: textSecondary } } },
+    color: chartColors[0],
+    theme: isDark ? 'classicDark' : 'classic',
   }
 
   if (loading && recentInteractions.length === 0) {
@@ -362,7 +372,7 @@ export default function ToolsPage() {
             <Statistic
               title="总使用次数"
               value={totalStats.total}
-              valueStyle={{ color: '#1890ff' }}
+              valueStyle={{ color: infoColor }}
             />
           </Card>
         </Col>
@@ -371,7 +381,7 @@ export default function ToolsPage() {
             <Statistic
               title="完成次数"
               value={totalStats.completed}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: successColor }}
             />
           </Card>
         </Col>
@@ -380,7 +390,7 @@ export default function ToolsPage() {
             <Statistic
               title="放弃次数"
               value={totalStats.abandoned}
-              valueStyle={{ color: '#ff4d4f' }}
+              valueStyle={{ color: errorColor }}
             />
           </Card>
         </Col>
@@ -465,7 +475,7 @@ export default function ToolsPage() {
           <Card
             title={`工具使用记录（${pagination.total}条）`}
             extra={
-              <span style={{ fontSize: 12, color: '#999' }}>
+              <span style={{ fontSize: 12, color: textMuted }}>
                 第 {pagination.page} / {pagination.totalPages} 页
               </span>
             }
@@ -491,20 +501,27 @@ export default function ToolsPage() {
                       dataIndex: 'action',
                       key: 'action',
                       render: (v: string) => {
+                        const actionLabels: Record<string, string> = {
+                          complete: '完成', submit: '提交', view: '查看', done: '完成',
+                          start: '开始', switch: '切换', select: '选择',
+                          abandon: '放弃', cancel: '取消', reset: '重置',
+                          input: '输入', tool_start: '开始', tool_input: '输入',
+                          tool_output: '输出', tool_complete: '完成', tool_abandon: '放弃'
+                        }
                         const colorMap: Record<string, string> = {
                           complete: 'green', submit: 'green', view: 'green', done: 'green',
                           start: 'blue', switch: 'blue', select: 'blue',
                           abandon: 'red', cancel: 'red', reset: 'red',
-                          input: 'orange'
+                          input: 'orange', tool_complete: 'green', tool_abandon: 'red'
                         }
-                        return <Tag color={colorMap[v] || 'default'}>{v}</Tag>
+                        return <Tag color={colorMap[v] || 'default'}>{actionLabels[v] || v}</Tag>
                       },
                     },
                     {
                       title: '访客ID',
                       dataIndex: 'visitor_id',
                       key: 'visitor_id',
-                      render: (v: string) => <span style={{ fontSize: 12, color: '#999' }}>{v?.slice(0, 10) || '-'}</span>,
+                      render: (v: string) => <span style={{ fontSize: 12, color: '#999' }}>{v?.slice(0, 20) || '-'}</span>,
                     },
                     {
                       title: '时间',
@@ -560,8 +577,22 @@ export default function ToolsPage() {
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Card size="small" title="基本信息">
-                  <p><strong>访客ID:</strong> {selectedRecord.visitor_id || '-'}</p>
-                  <p><strong>动作:</strong> <Tag color={selectedRecord.action === 'complete' ? 'green' : 'red'}>{selectedRecord.action}</Tag></p>
+                  <p><strong>访客ID:</strong> <span title={selectedRecord.visitor_id || ''}>{selectedRecord.visitor_id?.slice(0, 24) || '-'}</span></p>
+                  <p><strong>动作:</strong> <Tag color={selectedRecord.action === 'complete' || selectedRecord.action === 'tool_complete' ? 'green' : 'red'}>
+                    {selectedRecord.action === 'complete' ? '完成' :
+                     selectedRecord.action === 'submit' ? '提交' :
+                     selectedRecord.action === 'view' ? '查看' :
+                     selectedRecord.action === 'done' ? '完成' :
+                     selectedRecord.action === 'start' ? '开始' :
+                     selectedRecord.action === 'switch' ? '切换' :
+                     selectedRecord.action === 'select' ? '选择' :
+                     selectedRecord.action === 'abandon' || selectedRecord.action === 'tool_abandon' ? '放弃' :
+                     selectedRecord.action === 'cancel' ? '取消' :
+                     selectedRecord.action === 'reset' ? '重置' :
+                     selectedRecord.action === 'input' || selectedRecord.action === 'tool_input' ? '输入' :
+                     selectedRecord.action === 'tool_output' ? '输出' :
+                     selectedRecord.action === 'tool_complete' ? '完成' : selectedRecord.action}
+                  </Tag></p>
                   <p><strong>时间:</strong> {dayjs(selectedRecord.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
                   <p><strong>用时:</strong> {selectedRecord.duration_ms ? `${selectedRecord.duration_ms}ms` : '-'}</p>
                 </Card>
@@ -569,7 +600,7 @@ export default function ToolsPage() {
               <Col span={12}>
                 <Card size="small" title="输入参数">
                   <pre style={{ maxHeight: 200, overflow: 'auto', fontSize: 12 }}>
-                    {JSON.stringify(selectedRecord.input_params || {}, null, 2)}
+                    {formatInputParams(selectedRecord.input_params as Record<string, unknown>)}
                   </pre>
                 </Card>
               </Col>
@@ -578,7 +609,7 @@ export default function ToolsPage() {
               <Col span={24}>
                 <Card size="small" title="输出结果">
                   <pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 12 }}>
-                    {JSON.stringify(selectedRecord.output_result || {}, null, 2)}
+                    {formatInputParams(selectedRecord.output_result as Record<string, unknown>)}
                   </pre>
                 </Card>
               </Col>

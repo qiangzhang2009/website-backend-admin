@@ -1,5 +1,6 @@
 /**
  * 数据分析页面
+ * 多彩渐变设计风格
  */
 
 'use client'
@@ -11,11 +12,11 @@ import { Line, Bar } from '@ant-design/charts'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
+import { useTheme } from '@/components/AdminLayout'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-// 从 URL 参数获取当前租户
 function useTenantFromURL() {
   const searchParams = useSearchParams()
   return searchParams.get('tenant') || 'zxqconsulting'
@@ -37,8 +38,16 @@ interface AudienceData {
   languages: { name: string; visitors: number; pageViews: number }[]
 }
 
+// 多彩渐变卡片配置
+const ANALYTICS_CARDS = [
+  { key: 'visitors', label: '总访客', gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', icon: '👥' },
+  { key: 'sessions', label: '总会话', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', icon: '🔗' },
+  { key: 'events', label: '总事件', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', icon: '📊' },
+]
+
 function AnalyticsPageWithSuspense() {
   const TENANT = useTenantFromURL()
+  const { isDark, chartColors, textPrimary, textSecondary, textMuted, successColor, errorColor } = useTheme()
   const [days, setDays] = useState(7)
   const [traffic, setTraffic] = useState<TrafficRow[]>([])
   const [sources, setSources] = useState<SourceRow[]>([])
@@ -96,25 +105,35 @@ function AnalyticsPageWithSuspense() {
     colorField: 'type',
     smooth: true,
     height: 300,
-    xAxis: { label: { formatter: (v: string) => dayjs(v).format('MM-DD') } },
+    xAxis: { label: { formatter: (v: string) => dayjs(v).format('MM-DD'), style: { fill: textSecondary } } },
+    yAxis: { label: { style: { fill: textSecondary } } },
+    legend: { itemName: { style: { fill: textSecondary } } },
+    theme: isDark ? 'classicDark' : 'classic',
+    color: ['#8b5cf6', '#06b6d4'],
   }
 
   const sourceBarConfig = {
     data: sources,
     xField: 'source',
     yField: 'count',
-    color: '#52c41a',
+    color: '#8b5cf6',
     height: 300,
-    label: { position: 'top' as const },
+    label: { position: 'top' as const, style: { fill: textSecondary } },
+    xAxis: { label: { style: { fill: textSecondary } } },
+    yAxis: { label: { style: { fill: textSecondary } } },
+    theme: isDark ? 'classicDark' : 'classic',
   }
 
   const funnelBarConfig = {
     data: funnelData,
     xField: 'stage',
     yField: 'count',
-    color: '#722ed1',
+    color: '#10b981',
     height: 300,
-    label: { position: 'top' as const },
+    label: { position: 'top' as const, style: { fill: textSecondary } },
+    xAxis: { label: { style: { fill: textSecondary } } },
+    yAxis: { label: { style: { fill: textSecondary } } },
+    theme: isDark ? 'classicDark' : 'classic',
   }
 
   if (loading) {
@@ -123,21 +142,44 @@ function AnalyticsPageWithSuspense() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>数据分析</h2>
-        <Space>
-          <Select
-            value={days}
-            onChange={setDays}
-            style={{ width: 110 }}
-            options={[
-              { value: 7, label: '最近7天' },
-              { value: 30, label: '最近30天' },
-              { value: 90, label: '最近90天' },
-            ]}
-          />
-        </Space>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, color: textPrimary, fontSize: 24, fontWeight: 600 }}>数据分析</h2>
+        <Select
+          value={days}
+          onChange={setDays}
+          style={{ width: 140 }}
+          options={[
+            { value: 7, label: '最近 7 天' },
+            { value: 30, label: '最近 30 天' },
+            { value: 90, label: '最近 90 天' },
+          ]}
+        />
       </div>
+
+      {/* 多彩指标卡片 */}
+      {audience && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {ANALYTICS_CARDS.map((card) => (
+            <Col xs={12} sm={8} key={card.key}>
+              <Card
+                hoverable
+                style={{ background: card.gradient, border: 'none' }}
+                bodyStyle={{ padding: '16px', textAlign: 'center' }}
+              >
+                <div style={{ color: '#fff' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>{card.icon}</div>
+                  <div style={{ opacity: 0.9, fontSize: 12, marginBottom: 4 }}>{card.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 700 }}>
+                    {card.key === 'visitors' ? audience.summary.totalVisitors :
+                     card.key === 'sessions' ? audience.summary.totalSessions :
+                     audience.summary.totalEvents}
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
 
       <Tabs
         items={[
@@ -147,21 +189,21 @@ function AnalyticsPageWithSuspense() {
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24}>
-                  <Card title={`流量趋势（最近${days}天）`}>
+                  <Card title={<span style={{ color: textPrimary }}>流量趋势</span>}>
                     {traffic.length > 0
                       ? <Line {...trafficLineConfig} />
-                      : <Empty description="暂无流量数据，请确认追踪 SDK 已部署到网站" />}
+                      : <Empty description="暂无流量数据" />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="流量来源分布">
+                  <Card title={<span style={{ color: textPrimary }}>流量来源</span>}>
                     {sources.length > 0
                       ? <Bar {...sourceBarConfig} />
                       : <Empty description="暂无来源数据" />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="热门页面 TOP10">
+                  <Card title={<span style={{ color: textPrimary }}>热门页面</span>}>
                     {topPages.length > 0 ? (
                       <Table
                         dataSource={topPages}
@@ -169,9 +211,9 @@ function AnalyticsPageWithSuspense() {
                         pagination={false}
                         size="small"
                         columns={[
-                          { title: '页面路径', dataIndex: 'page', key: 'page', ellipsis: true },
-                          { title: '浏览量', dataIndex: 'pv', key: 'pv', sorter: (a: PageRow, b: PageRow) => a.pv - b.pv },
-                          { title: '独立访客', dataIndex: 'uv', key: 'uv' },
+                          { title: '页面', dataIndex: 'page', key: 'page', ellipsis: true, render: (v: string) => <span style={{ color: textSecondary }}>{v}</span> },
+                          { title: <><span style={{ color: '#8b5cf6' }}>PV</span></>, dataIndex: 'pv', key: 'pv', render: (v: number) => <span style={{ color: '#8b5cf6', fontWeight: 500 }}>{v}</span> },
+                          { title: <><span style={{ color: '#06b6d4' }}>UV</span></>, dataIndex: 'uv', key: 'uv', render: (v: number) => <span style={{ color: '#06b6d4', fontWeight: 500 }}>{v}</span> },
                         ]}
                       />
                     ) : (
@@ -191,43 +233,66 @@ function AnalyticsPageWithSuspense() {
                   <Col xs={24}>
                     <Row gutter={16}>
                       <Col xs={12} sm={6}>
-                        <Card><Statistic title="总访客" value={funnel.visitors} /></Card>
+                        <Card hoverable style={{ background: 'linear-gradient(135deg, #06b6d4, #0891b2)', border: 'none' }} bodyStyle={{ padding: '16px', textAlign: 'center' }}>
+                          <div style={{ color: '#fff' }}>
+                            <div style={{ opacity: 0.9, fontSize: 12 }}>总访客</div>
+                            <div style={{ fontSize: 24, fontWeight: 700 }}>{funnel.visitors}</div>
+                          </div>
+                        </Card>
                       </Col>
                       <Col xs={12} sm={6}>
-                        <Card><Statistic title="使用工具" value={funnel.toolUsers} suffix={funnel.visitors > 0 ? `(${((funnel.toolUsers/funnel.visitors)*100).toFixed(1)}%)` : ''} /></Card>
+                        <Card hoverable style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', border: 'none' }} bodyStyle={{ padding: '16px', textAlign: 'center' }}>
+                          <div style={{ color: '#fff' }}>
+                            <div style={{ opacity: 0.9, fontSize: 12 }}>使用工具</div>
+                            <div style={{ fontSize: 24, fontWeight: 700 }}>{funnel.toolUsers}</div>
+                            <div style={{ opacity: 0.8, fontSize: 11 }}>{funnel.visitors > 0 ? ((funnel.toolUsers/funnel.visitors)*100).toFixed(1) : 0}%</div>
+                          </div>
+                        </Card>
                       </Col>
                       <Col xs={12} sm={6}>
-                        <Card><Statistic title="提交询盘" value={funnel.inquiryUsers} suffix={funnel.visitors > 0 ? `(${((funnel.inquiryUsers/funnel.visitors)*100).toFixed(1)}%)` : ''} /></Card>
+                        <Card hoverable style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none' }} bodyStyle={{ padding: '16px', textAlign: 'center' }}>
+                          <div style={{ color: '#fff' }}>
+                            <div style={{ opacity: 0.9, fontSize: 12 }}>提交询盘</div>
+                            <div style={{ fontSize: 24, fontWeight: 700 }}>{funnel.inquiryUsers}</div>
+                            <div style={{ opacity: 0.8, fontSize: 11 }}>{funnel.visitors > 0 ? ((funnel.inquiryUsers/funnel.visitors)*100).toFixed(1) : 0}%</div>
+                          </div>
+                        </Card>
                       </Col>
                       <Col xs={12} sm={6}>
-                        <Card><Statistic title="成交转化" value={funnel.converted} suffix={funnel.visitors > 0 ? `(${((funnel.converted/funnel.visitors)*100).toFixed(1)}%)` : ''} /></Card>
+                        <Card hoverable style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }} bodyStyle={{ padding: '16px', textAlign: 'center' }}>
+                          <div style={{ color: '#fff' }}>
+                            <div style={{ opacity: 0.9, fontSize: 12 }}>成交转化</div>
+                            <div style={{ fontSize: 24, fontWeight: 700 }}>{funnel.converted}</div>
+                            <div style={{ opacity: 0.8, fontSize: 11 }}>{funnel.visitors > 0 ? ((funnel.converted/funnel.visitors)*100).toFixed(1) : 0}%</div>
+                          </div>
+                        </Card>
                       </Col>
                     </Row>
                   </Col>
                 )}
                 <Col xs={24}>
-                  <Card title="转化漏斗图">
+                  <Card title={<span style={{ color: textPrimary }}>转化漏斗图</span>}>
                     {funnelData.length > 0 && funnelData[0].count > 0
                       ? <Bar {...funnelBarConfig} />
                       : <Empty description="暂无转化数据" />}
                   </Card>
                 </Col>
                 <Col xs={24}>
-                  <Card title="各阶段转化率">
+                  <Card title={<span style={{ color: textPrimary }}>各阶段转化率</span>}>
                     <Table
                       dataSource={funnelData}
                       rowKey="stage"
                       pagination={false}
                       columns={[
-                        { title: '阶段', dataIndex: 'stage', key: 'stage' },
-                        { title: '用户数', dataIndex: 'count', key: 'count' },
+                        { title: '阶段', dataIndex: 'stage', key: 'stage', render: (v: string) => <Tag color="blue">{v}</Tag> },
+                        { title: '用户数', dataIndex: 'count', key: 'count', render: (v: number) => <span style={{ fontWeight: 600 }}>{v}</span> },
                         {
                           title: '转化率',
                           key: 'rate',
                           render: (_: unknown, r: { stage: string; count: number }, index: number) => {
-                            if (index === 0) return '100%'
+                            if (index === 0) return <Tag color="blue">100%</Tag>
                             const base = funnelData[0].count
-                            return base > 0 ? `${((r.count / base) * 100).toFixed(1)}%` : '-'
+                            return base > 0 ? <Tag color="green">{((r.count / base) * 100).toFixed(1)}%</Tag> : '-'
                           },
                         },
                         {
@@ -254,44 +319,23 @@ function AnalyticsPageWithSuspense() {
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24}>
-                  <Card title="工具使用详情">
+                  <Card title={<span style={{ color: textPrimary }}>工具使用详情</span>}>
                     {toolStats.length > 0 ? (
                       <Table
                         dataSource={toolStats}
                         rowKey="tool"
                         pagination={false}
                         columns={[
-                          { title: '工具名称', dataIndex: 'tool', key: 'tool', render: (t: string) => <Tag color="blue">{t}</Tag> },
-                          { title: '总使用次数', dataIndex: 'total', key: 'total' },
-                          {
-                            title: '完成',
-                            dataIndex: 'completed',
-                            key: 'completed',
-                            render: (v: number, r: ToolStat) => (
-                              <span style={{ color: '#52c41a' }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span>
-                            ),
-                          },
-                          {
-                            title: '放弃',
-                            dataIndex: 'abandoned',
-                            key: 'abandoned',
-                            render: (v: number, r: ToolStat) => (
-                              <span style={{ color: '#ff4d4f' }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span>
-                            ),
-                          },
+                          { title: '工具', dataIndex: 'tool', key: 'tool', render: (t: string) => <Tag color="purple">{t}</Tag> },
+                          { title: '总次数', dataIndex: 'total', key: 'total', render: (v: number) => <span style={{ color: '#8b5cf6', fontWeight: 500 }}>{v}</span> },
+                          { title: '完成', dataIndex: 'completed', key: 'completed', render: (v: number, r: ToolStat) => <span style={{ color: successColor }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span> },
+                          { title: '放弃', dataIndex: 'abandoned', key: 'abandoned', render: (v: number, r: ToolStat) => <span style={{ color: errorColor }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span> },
                           { title: '平均用时', dataIndex: 'avgTime', key: 'avgTime' },
-                          {
-                            title: '完成率',
-                            dataIndex: 'completionRate',
-                            key: 'completionRate',
-                            render: (v: number) => (
-                              <Tag color={v >= 70 ? 'green' : v >= 40 ? 'orange' : 'red'}>{v}%</Tag>
-                            ),
-                          },
+                          { title: '完成率', dataIndex: 'completionRate', key: 'completionRate', render: (v: number) => <Tag color={v >= 70 ? 'green' : v >= 40 ? 'orange' : 'red'}>{v}%</Tag> },
                         ]}
                       />
                     ) : (
-                      <Empty description="暂无工具使用数据，等待用户与工具交互后自动记录" />
+                      <Empty description="暂无工具使用数据" />
                     )}
                   </Card>
                 </Col>
@@ -303,18 +347,8 @@ function AnalyticsPageWithSuspense() {
             label: '受众分析',
             children: audience ? (
               <Row gutter={[16, 16]}>
-                <Col xs={24} sm={8}>
-                  <Card><Statistic title="总访客" value={audience.summary.totalVisitors} /></Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                  <Card><Statistic title="总会话" value={audience.summary.totalSessions} /></Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                  <Card><Statistic title="总事件" value={audience.summary.totalEvents} /></Card>
-                </Col>
-                
                 <Col xs={24} lg={12}>
-                  <Card title="设备类型">
+                  <Card title={<span style={{ color: textPrimary }}>设备类型</span>}>
                     {audience.devices.length > 0 ? (
                       <Table
                         dataSource={audience.devices}
@@ -322,16 +356,16 @@ function AnalyticsPageWithSuspense() {
                         pagination={false}
                         size="small"
                         columns={[
-                          { title: '设备', dataIndex: 'type', key: 'type' },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                          { title: '设备', dataIndex: 'type', key: 'type', render: (v: string) => <Tag color="cyan">{v}</Tag> },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors', render: (v: number) => <span style={{ color: '#06b6d4' }}>{v}</span> },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews', render: (v: number) => <span style={{ color: '#8b5cf6' }}>{v}</span> },
                         ]}
                       />
                     ) : <Empty />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="浏览器">
+                  <Card title={<span style={{ color: textPrimary }}>浏览器</span>}>
                     {audience.browsers.length > 0 ? (
                       <Table
                         dataSource={audience.browsers}
@@ -340,15 +374,15 @@ function AnalyticsPageWithSuspense() {
                         size="small"
                         columns={[
                           { title: '浏览器', dataIndex: 'name', key: 'name' },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors', render: (v: number) => <span style={{ color: '#06b6d4' }}>{v}</span> },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews', render: (v: number) => <span style={{ color: '#8b5cf6' }}>{v}</span> },
                         ]}
                       />
                     ) : <Empty />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="操作系统">
+                  <Card title={<span style={{ color: textPrimary }}>操作系统</span>}>
                     {audience.operatingSystems.length > 0 ? (
                       <Table
                         dataSource={audience.operatingSystems}
@@ -357,15 +391,15 @@ function AnalyticsPageWithSuspense() {
                         size="small"
                         columns={[
                           { title: '系统', dataIndex: 'name', key: 'name' },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors', render: (v: number) => <span style={{ color: '#06b6d4' }}>{v}</span> },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews', render: (v: number) => <span style={{ color: '#8b5cf6' }}>{v}</span> },
                         ]}
                       />
                     ) : <Empty />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="流量来源">
+                  <Card title={<span style={{ color: textPrimary }}>流量来源</span>}>
                     {audience.trafficSources.length > 0 ? (
                       <Table
                         dataSource={audience.trafficSources}
@@ -373,17 +407,16 @@ function AnalyticsPageWithSuspense() {
                         pagination={false}
                         size="small"
                         columns={[
-                          { title: '来源', dataIndex: 'source', key: 'source', 
-                            render: (v: string) => <Tag color={v==='search'?'blue':v==='social'?'green':v==='direct'?'orange':'default'}>{v}</Tag> },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                          { title: '来源', dataIndex: 'source', key: 'source', render: (v: string) => <Tag color={v==='search'?'blue':v==='social'?'green':v==='direct'?'orange':'default'}>{v}</Tag> },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors', render: (v: number) => <span style={{ color: '#06b6d4' }}>{v}</span> },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews', render: (v: number) => <span style={{ color: '#8b5cf6' }}>{v}</span> },
                         ]}
                       />
                     ) : <Empty />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="国家/地区">
+                  <Card title={<span style={{ color: textPrimary }}>国家/地区</span>}>
                     {audience.countries.length > 0 ? (
                       <Table
                         dataSource={audience.countries}
@@ -392,15 +425,15 @@ function AnalyticsPageWithSuspense() {
                         size="small"
                         columns={[
                           { title: '国家', dataIndex: 'name', key: 'name' },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors', render: (v: number) => <span style={{ color: '#06b6d4' }}>{v}</span> },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews', render: (v: number) => <span style={{ color: '#8b5cf6' }}>{v}</span> },
                         ]}
                       />
                     ) : <Empty />}
                   </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <Card title="城市 TOP15">
+                  <Card title={<span style={{ color: textPrimary }}>城市 TOP15</span>}>
                     {audience.cities.length > 0 ? (
                       <Table
                         dataSource={audience.cities}
@@ -410,25 +443,8 @@ function AnalyticsPageWithSuspense() {
                         columns={[
                           { title: '城市', dataIndex: 'name', key: 'name' },
                           { title: '国家', dataIndex: 'country', key: 'country' },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
-                        ]}
-                      />
-                    ) : <Empty />}
-                  </Card>
-                </Col>
-                <Col xs={24}>
-                  <Card title="语言">
-                    {audience.languages.length > 0 ? (
-                      <Table
-                        dataSource={audience.languages}
-                        rowKey="name"
-                        pagination={false}
-                        size="small"
-                        columns={[
-                          { title: '语言', dataIndex: 'name', key: 'name' },
-                          { title: '访客', dataIndex: 'visitors', key: 'visitors' },
-                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews' },
+                          { title: '访客', dataIndex: 'visitors', key: 'visitors', render: (v: number) => <span style={{ color: '#06b6d4' }}>{v}</span> },
+                          { title: '浏览量', dataIndex: 'pageViews', key: 'pageViews', render: (v: number) => <span style={{ color: '#8b5cf6' }}>{v}</span> },
                         ]}
                       />
                     ) : <Empty />}
@@ -436,7 +452,7 @@ function AnalyticsPageWithSuspense() {
                 </Col>
               </Row>
             ) : (
-              <Empty description="暂无受众数据，等待用户访问网站后自动记录" />
+              <Empty description="暂无受众数据" />
             ),
           },
         ]}
@@ -445,7 +461,6 @@ function AnalyticsPageWithSuspense() {
   )
 }
 
-// 使用 Suspense 包裹整个页面
 export default function AnalyticsPage() {
   return (
     <Suspense fallback={<div style={{ padding: 50, textAlign: 'center' }}><Spin tip="加载中..." /></div>}>

@@ -6,12 +6,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sql, isDbConfigured } from '@/lib/db'
 import { getTenantId } from '@/lib/tenant'
 
-// Mock 数据（当数据库未配置时使用）
-const mockProfiles = [
-  { id: '1', profile_id: 'profile_1', profile_type: 'bazi', name: '张三', birthday: '1990-05-15', gender: '男', profile_completeness: 85 },
-  { id: '2', profile_id: 'profile_2', profile_type: 'default', name: '李四', birthday: '1985-08-20', gender: '女', profile_completeness: 60 },
-]
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const tenantSlug = searchParams.get('tenant')
@@ -30,8 +24,9 @@ export async function GET(request: NextRequest) {
 
   if (!isDbConfigured || !sql) {
     return NextResponse.json({
-      data: visitorId ? mockProfiles.filter(p => p.id === visitorId) : mockProfiles,
-      total: mockProfiles.length,
+      data: [],
+      total: 0,
+      error: 'Database not configured'
     })
   }
 

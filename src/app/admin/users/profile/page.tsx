@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Card, Row, Col, Descriptions, Tag, Timeline, Table, Progress, Space, Button, Tabs, Statistic } from 'antd'
 import { UserOutlined, BankOutlined, GlobalOutlined, ToolOutlined, CustomerServiceOutlined, MessageOutlined } from '@ant-design/icons'
 import { Radar } from '@ant-design/charts'
+import { useTheme } from '@/components/AdminLayout'
 
 // 模拟用户画像数据
 const mockProfile = {
@@ -167,6 +168,7 @@ const inquiryColumns = [
 ]
 
 export default function UserProfilePage() {
+  const { infoColor, textMuted } = useTheme()
   const [activeTab, setActiveTab] = useState('overview')
 
   const items = [
@@ -206,13 +208,13 @@ export default function UserProfilePage() {
                   percent={mockProfile.intentScore} 
                   size={160}
                   strokeColor={{
-                    '0%': '#108ee9',
+                    '0%': infoColor,
                     '100%': '#87d068',
                   }}
                   format={percent => (
                     <div>
                       <div style={{ fontSize: 36, fontWeight: 'bold' }}>{percent}</div>
-                      <div style={{ fontSize: 14, color: '#888' }}>意向评分</div>
+                      <div style={{ fontSize: 14, color: textMuted }}>意向评分</div>
                     </div>
                   )}
                 />
@@ -241,7 +243,7 @@ export default function UserProfilePage() {
                   children: (
                     <div>
                       <div>{v.time}</div>
-                      <div style={{ color: '#1890ff' }}>{v.action}</div>
+                      <div style={{ color: infoColor }}>{v.action}</div>
                       {v.page && <div>页面: {v.page} ({v.duration})</div>}
                       {v.tool && <div>工具: {v.tool} - {v.result}</div>}
                       {v.form && <div>表单: {v.form}</div>}

@@ -1,10 +1,15 @@
 /**
  * 模块使用分析页面
+ * 使用 Ant Design 组件，支持深色主题
  */
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Card, Row, Col, Table, Tag, Button, Space, Progress, Spin, Statistic, Tabs } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
+import { useTheme } from '@/components/AdminLayout'
 
 interface ModuleStat {
   module: string
@@ -44,16 +49,42 @@ const MODULE_NAMES: Record<string, string> = {
   digital: '数字命理',
   daodejing: '道德经',
   question: '问卦',
-  // 中医药出海工具
   market: '市场选择器',
   cost: '成本计算器',
   policy: '政策查询',
   decision: '决策工作台',
 }
 
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  start: '开始',
+  input: '输入',
+  output: '输出',
+  complete: '完成',
+  abandon: '放弃',
+  tool_start: '开始',
+  tool_input: '输入',
+  tool_output: '输出',
+  tool_complete: '完成',
+  tool_abandon: '放弃',
+}
+
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  start: 'green',
+  input: 'blue',
+  output: 'purple',
+  complete: 'green',
+  abandon: 'red',
+  tool_start: 'green',
+  tool_input: 'blue',
+  tool_output: 'purple',
+  tool_complete: 'green',
+  tool_abandon: 'red',
+}
+
 export default function ModulesPage() {
   const searchParams = useSearchParams()
   const tenant = searchParams.get('tenant') || 'zxqconsulting'
+  const { isDark, textPrimary, textSecondary, textMuted, successColor, errorColor, warningColor, infoColor, cardBg } = useTheme()
   
   const [stats, setStats] = useState<Record<string, ModuleStat>>({})
   const [recentUsage, setRecentUsage] = useState<ModuleUsage[]>([])
@@ -93,199 +124,201 @@ export default function ModulesPage() {
   const totalCompleted = Object.values(stats).reduce((sum, s) => sum + s.completed, 0)
   const avgCompletionRate = totalUsage > 0 ? ((totalCompleted / totalUsage) * 100).toFixed(1) : '0'
 
+  const statColumns = [
+    {
+      title: '模块',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text: string) => <span style={{ fontWeight: 500, color: textPrimary }}>{text}</span>,
+    },
+    {
+      title: '使用次数',
+      dataIndex: 'total',
+      key: 'total',
+      render: (v: number) => <span style={{ color: infoColor, fontWeight: 600 }}>{v}</span>,
+    },
+    {
+      title: '完成',
+      dataIndex: 'completed',
+      key: 'completed',
+      render: (v: number, r: ModuleStat) => (
+        <span style={{ color: successColor }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span>
+      ),
+    },
+    {
+      title: '放弃',
+      dataIndex: 'abandoned',
+      key: 'abandoned',
+      render: (v: number, r: ModuleStat) => (
+        <span style={{ color: errorColor }}>{v} ({r.total > 0 ? Math.round(v / r.total * 100) : 0}%)</span>
+      ),
+    },
+    {
+      title: '平均时长',
+      dataIndex: 'avgTime',
+      key: 'avgTime',
+      render: (v: string) => <span style={{ color: textSecondary }}>{v}</span>,
+    },
+    {
+      title: '完成率',
+      dataIndex: 'completionRate',
+      key: 'completionRate',
+      render: (v: number) => {
+        let color: 'green' | 'orange' | 'red' = 'green'
+        if (v < 40) color = 'red'
+        else if (v < 70) color = 'orange'
+        return <Tag color={color}>{v}%</Tag>
+      },
+    },
+    {
+      title: '热度',
+      dataIndex: 'total',
+      key: 'heat',
+      render: (v: number) => {
+        const max = moduleList[0]?.total || 1
+        const percent = max > 0 ? (v / max) * 100 : 0
+        return (
+          <div style={{ width: 80 }}>
+            <Progress percent={percent} showInfo={false} strokeColor={infoColor} trailColor={isDark ? '#374151' : '#e5e7eb'} size="small" />
+          </div>
+        )
+      },
+    },
+  ]
+
+  const usageColumns = [
+    {
+      title: '时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (v: string) => <span style={{ color: textSecondary }}>{new Date(v).toLocaleString()}</span>,
+    },
+    {
+      title: '模块',
+      dataIndex: 'module_id',
+      key: 'module_id',
+      render: (v: string) => <span style={{ color: textPrimary, fontWeight: 500 }}>{MODULE_NAMES[v] || v}</span>,
+    },
+    {
+      title: '事件类型',
+      dataIndex: 'event_type',
+      key: 'event_type',
+      render: (v: string) => <Tag color={EVENT_TYPE_COLORS[v] || 'default'}>{EVENT_TYPE_LABELS[v] || v}</Tag>,
+    },
+    {
+      title: '时长(秒)',
+      dataIndex: 'duration_seconds',
+      key: 'duration_seconds',
+      render: (v: number) => <span style={{ color: textSecondary }}>{v || '-'}</span>,
+    },
+    {
+      title: '对话轮次',
+      dataIndex: 'conversation_turns',
+      key: 'conversation_turns',
+      render: (v: number) => <span style={{ color: textSecondary }}>{v || '-'}</span>,
+    },
+  ]
+
+  const tabItems = [
+    {
+      key: 'stats',
+      label: '统计概览',
+      children: (
+        <Card>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+          ) : moduleList.length > 0 ? (
+            <Table
+              dataSource={moduleList.sort((a, b) => b.total - a.total)}
+              rowKey="id"
+              pagination={false}
+              columns={statColumns}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', padding: 40, color: textMuted }}>
+              暂无模块使用数据，等待用户与工具交互后自动记录
+            </div>
+          )}
+        </Card>
+      ),
+    },
+    {
+      key: 'usage',
+      label: '使用记录',
+      children: (
+        <Card>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+          ) : recentUsage.length > 0 ? (
+            <Table
+              dataSource={recentUsage.slice(0, 50)}
+              rowKey="created_at"
+              pagination={false}
+              columns={usageColumns}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', padding: 40, color: textMuted }}>
+              暂无使用记录
+            </div>
+          )}
+        </Card>
+      ),
+    },
+  ]
+
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">模块使用分析</h1>
-        <button
-          onClick={fetchData}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-        >
-          刷新数据
-        </button>
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, color: textPrimary }}>模块使用分析</h2>
+        <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新数据</Button>
       </div>
 
-      {/* 统计概览 */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{totalUsage}</div>
-          <div className="text-sm text-gray-500">总使用次数</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-green-600">{moduleList.length}</div>
-          <div className="text-sm text-gray-500">活跃模块数</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-yellow-600">{totalCompleted}</div>
-          <div className="text-sm text-gray-500">完成次数</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-purple-600">{avgCompletionRate}%</div>
-          <div className="text-sm text-gray-500">平均完成率</div>
-        </div>
-      </div>
+      {/* 统计概览卡片 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>总使用次数</span>} 
+              value={totalUsage} 
+              valueStyle={{ color: infoColor }} 
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>活跃模块数</span>} 
+              value={moduleList.length} 
+              valueStyle={{ color: successColor }} 
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>完成次数</span>} 
+              value={totalCompleted} 
+              valueStyle={{ color: warningColor }} 
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>平均完成率</span>} 
+              value={parseFloat(avgCompletionRate)} 
+              suffix="%"
+              valueStyle={{ color: chartColors[5] }} 
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* Tab 切换 */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setActiveTab('stats')}
-          className={`px-4 py-2 rounded-lg ${activeTab === 'stats' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          统计概览
-        </button>
-        <button
-          onClick={() => setActiveTab('usage')}
-          className={`px-4 py-2 rounded-lg ${activeTab === 'usage' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          使用记录
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-12">加载中...</div>
-      ) : activeTab === 'stats' ? (
-        /* 模块统计表格 */
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">模块</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">使用次数</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">完成</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">放弃</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">平均时长</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">完成率</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">热度</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {moduleList.sort((a, b) => b.total - a.total).map((module) => (
-                <tr key={module.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">
-                    {module.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-blue-600 font-semibold">{module.total}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-green-600">{module.completed}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-red-500">{module.abandoned}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {module.avgTime}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full ${
-                            module.completionRate >= 70 ? 'bg-green-500' :
-                            module.completionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${module.completionRate}%` }}
-                        />
-                      </div>
-                      <span className="text-sm">{module.completionRate}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <HeatBar value={module.total} max={moduleList[0]?.total || 1} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        /* 使用记录列表 */
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">时间</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">模块</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">事件类型</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">时长(秒)</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">对话轮次</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {recentUsage.slice(0, 50).map((usage, idx) => (
-                <tr key={idx} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(usage.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">
-                    {MODULE_NAMES[usage.module_id] || usage.module_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <EventTypeBadge type={usage.event_type} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {usage.duration_seconds || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {usage.conversation_turns || '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key as any)} items={tabItems} />
     </div>
   )
 }
 
-// 热度条组件
-function HeatBar({ value, max }: { value: number; max: number }) {
-  const percentage = max > 0 ? (value / max) * 100 : 0
-  return (
-    <div className="w-24 bg-gray-200 rounded-full h-2">
-      <div 
-        className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full"
-        style={{ width: `${percentage}%` }}
-      />
-    </div>
-  )
-}
-
-// 事件类型标签
-function EventTypeBadge({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    start: 'bg-green-100 text-green-800',
-    input: 'bg-blue-100 text-blue-800',
-    output: 'bg-purple-100 text-purple-800',
-    complete: 'bg-green-100 text-green-800',
-    abandon: 'bg-red-100 text-red-800',
-    tool_start: 'bg-green-100 text-green-800',
-    tool_input: 'bg-blue-100 text-blue-800',
-    tool_output: 'bg-purple-100 text-purple-800',
-    tool_complete: 'bg-green-100 text-green-800',
-    tool_abandon: 'bg-red-100 text-red-800',
-  }
-  
-  const labels: Record<string, string> = {
-    start: '开始',
-    input: '输入',
-    output: '输出',
-    complete: '完成',
-    abandon: '放弃',
-    tool_start: '开始',
-    tool_input: '输入',
-    tool_output: '输出',
-    tool_complete: '完成',
-    tool_abandon: '放弃',
-  }
-  
-  const color = colors[type] || 'bg-gray-100 text-gray-800'
-  const label = labels[type] || type
-  
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${color}`}>
-      {label}
-    </span>
-  )
-}
+// 临时定义 chartColors，因为上面没用上
+const chartColors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#22c55e', '#f97316']

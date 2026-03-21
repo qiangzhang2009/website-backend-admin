@@ -1,10 +1,15 @@
 /**
  * 内容热度分析页面
+ * 使用 Ant Design 组件，支持深色主题和客户端筛选
  */
+
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Card, Row, Col, Table, Tag, Button, Space, Statistic, Input, Progress } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
+import { useTheme } from '@/components/AdminLayout'
 
 interface ContentItem {
   contentType: string
@@ -18,11 +23,19 @@ interface ContentItem {
   lastViewedAt: string
 }
 
+const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  tool: { label: '工具', color: 'purple' },
+  page: { label: '页面', color: 'blue' },
+  article: { label: '文章', color: 'green' },
+  module: { label: '模块', color: 'orange' },
+}
+
 export default function ContentPage() {
   const searchParams = useSearchParams()
   const tenant = searchParams.get('tenant') || 'zxqconsulting'
+  const { isDark, textPrimary, textSecondary, textMuted, infoColor, successColor, warningColor, cardBg } = useTheme()
   
-  const [data, setData] = useState<ContentItem[]>([])
+  const [allData, setAllData] = useState<ContentItem[]>([])
   const [summary, setSummary] = useState<{ totalViews: number; totalUniqueViewers: number; totalInteractions: number; topContent: ContentItem[] }>({
     totalViews: 0,
     totalUniqueViewers: 0,
@@ -30,25 +43,53 @@ export default function ContentPage() {
     topContent: [],
   })
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('')
-  const [contentType, setContentType] = useState('')
+  const [filterText, setFilterText] = useState('')
+  const [selectedType, setSelectedType] = useState<string>('')
+
+  // 客户端筛选
+  const data = useMemo(() => {
+    let result = allData
+    
+    // 按类型筛选
+    if (selectedType) {
+      result = result.filter(item => item.contentType === selectedType)
+    }
+    
+    // 按关键词搜索
+    if (filterText) {
+      const searchLower = filterText.toLowerCase()
+      result = result.filter(item => 
+        item.contentName?.toLowerCase().includes(searchLower) || 
+        item.contentId?.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    return result
+  }, [allData, selectedType, filterText])
+
+  // 按类型统计
+  const typeStats = useMemo(() => {
+    const stats: Record<string, number> = { tool: 0, page: 0, article: 0, module: 0 }
+    allData.forEach(item => {
+      if (stats[item.contentType] !== undefined) {
+        stats[item.contentType]++
+      }
+    })
+    return stats
+  }, [allData])
 
   useEffect(() => {
     fetchData()
-  }, [tenant, contentType])
+  }, [tenant])
 
   async function fetchData() {
     setLoading(true)
     try {
-      const baseUrl = window.location.origin
-      const url = new URL(`/api/admin/content?tenant=${tenant}`, baseUrl)
-      if (contentType) url.searchParams.append('type', contentType)
-      
-      const res = await fetch(url.toString())
+      const res = await fetch(`/api/admin/content?tenant=${tenant}`)
       const result = await res.json()
       
       if (result.data) {
-        setData(result.data)
+        setAllData(result.data)
       }
       if (result.summary) {
         setSummary(result.summary)
@@ -60,228 +101,225 @@ export default function ContentPage() {
     }
   }
 
-  const filteredData = data.filter(item => 
-    !filter || 
-    item.contentName?.includes(filter) || 
-    item.contentId?.includes(filter)
-  )
+  const columns = [
+    {
+      title: '内容',
+      key: 'content',
+      render: (_: any, record: ContentItem) => (
+        <div>
+          <div style={{ fontWeight: 500, color: textPrimary }}>{record.contentName || record.contentId}</div>
+          <div style={{ fontSize: 12, color: textMuted }}>{record.contentId}</div>
+        </div>
+      ),
+    },
+    {
+      title: '类型',
+      dataIndex: 'contentType',
+      key: 'contentType',
+      render: (type: string) => {
+        const config = TYPE_CONFIG[type] || { label: type, color: 'default' }
+        return <Tag color={config.color}>{config.label}</Tag>
+      },
+    },
+    {
+      title: '浏览量',
+      dataIndex: 'viewCount',
+      key: 'viewCount',
+      sorter: (a: ContentItem, b: ContentItem) => a.viewCount - b.viewCount,
+      render: (v: number) => <span style={{ color: infoColor, fontWeight: 600 }}>{(v || 0).toLocaleString()}</span>,
+    },
+    {
+      title: '独立访客',
+      dataIndex: 'uniqueViewers',
+      key: 'uniqueViewers',
+      render: (v: number) => <span style={{ color: textSecondary }}>{(v || 0).toLocaleString()}</span>,
+    },
+    {
+      title: '平均停留',
+      dataIndex: 'avgDuration',
+      key: 'avgDuration',
+      render: (v: number) => <span style={{ color: textSecondary }}>{formatDuration(v)}</span>,
+    },
+    {
+      title: '互动数',
+      dataIndex: 'interactionCount',
+      key: 'interactionCount',
+      render: (v: number) => (
+        <span style={{ color: v > 0 ? successColor : textMuted }}>
+          {(v || 0).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      title: '最后浏览',
+      dataIndex: 'lastViewedAt',
+      key: 'lastViewedAt',
+      render: (v: string) => <span style={{ color: textMuted }}>{v ? new Date(v).toLocaleDateString() : '-'}</span>,
+    },
+    {
+      title: '热度',
+      dataIndex: 'viewCount',
+      key: 'heat',
+      render: (v: number) => {
+        const maxView = Math.max(...allData.map(item => item.viewCount || 0), 1)
+        const percent = maxView > 0 ? ((v || 0) / maxView) * 100 : 0
+        let color = infoColor
+        if (percent >= 80) color = '#ef4444'
+        else if (percent >= 60) color = '#f97316'
+        else if (percent >= 40) color = '#eab308'
+        
+        return (
+          <div style={{ width: 80 }}>
+            <Progress percent={percent} showInfo={false} strokeColor={color} trailColor={isDark ? '#374151' : '#e5e7eb'} size="small" />
+          </div>
+        )
+      },
+    },
+  ]
 
-  const typeStats = {
-    tool: filteredData.filter(c => c.contentType === 'tool'),
-    page: filteredData.filter(c => c.contentType === 'page'),
-    article: filteredData.filter(c => c.contentType === 'article'),
-    module: filteredData.filter(c => c.contentType === 'module'),
-  }
+  const typeButtons = [
+    { key: '', label: '全部', count: allData.length },
+    { key: 'tool', label: '工具', count: typeStats.tool },
+    { key: 'page', label: '页面', count: typeStats.page },
+    { key: 'module', label: '模块', count: typeStats.module },
+    { key: 'article', label: '文章', count: typeStats.article },
+  ]
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">内容热度分析</h1>
-        <button
-          onClick={fetchData}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-        >
-          刷新数据
-        </button>
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, color: textPrimary }}>内容热度分析</h2>
+        <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新数据</Button>
       </div>
 
       {/* 统计概览 */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{(summary.totalViews || 0).toLocaleString()}</div>
-          <div className="text-sm text-gray-500">总浏览量</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-green-600">{(summary.totalUniqueViewers || 0).toLocaleString()}</div>
-          <div className="text-sm text-gray-500">独立访客</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-purple-600">{(summary.totalInteractions || 0).toLocaleString()}</div>
-          <div className="text-sm text-gray-500">互动次数</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-orange-600">{data.length}</div>
-          <div className="text-sm text-gray-500">内容条目</div>
-        </div>
-      </div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>总浏览量</span>} 
+              value={summary.totalViews || 0} 
+              valueStyle={{ color: infoColor }} 
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>独立访客</span>} 
+              value={summary.totalUniqueViewers || 0} 
+              valueStyle={{ color: successColor }} 
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>互动次数</span>} 
+              value={summary.totalInteractions || 0} 
+              valueStyle={{ color: warningColor }} 
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card>
+            <Statistic 
+              title={<span style={{ color: textSecondary }}>内容条目</span>} 
+              value={allData.length} 
+              valueStyle={{ color: textPrimary }} 
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* 类型筛选 */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setContentType('')}
-          className={`px-4 py-2 rounded-lg ${contentType === '' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          全部 ({data.length})
-        </button>
-        <button
-          onClick={() => setContentType('tool')}
-          className={`px-4 py-2 rounded-lg ${contentType === 'tool' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          工具 ({typeStats.tool.length})
-        </button>
-        <button
-          onClick={() => setContentType('page')}
-          className={`px-4 py-2 rounded-lg ${contentType === 'page' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          页面 ({typeStats.page.length})
-        </button>
-        <button
-          onClick={() => setContentType('module')}
-          className={`px-4 py-2 rounded-lg ${contentType === 'module' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          模块 ({typeStats.module.length})
-        </button>
-        <button
-          onClick={() => setContentType('article')}
-          className={`px-4 py-2 rounded-lg ${contentType === 'article' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700'}`}
-        >
-          文章 ({typeStats.article.length})
-        </button>
-      </div>
+      <Card style={{ marginBottom: 16 }}>
+        <Space wrap>
+          {typeButtons.map(btn => (
+            <Button
+              key={btn.key}
+              type={selectedType === btn.key ? 'primary' : 'default'}
+              onClick={() => setSelectedType(btn.key)}
+            >
+              {btn.label} ({btn.count})
+            </Button>
+          ))}
+        </Space>
+      </Card>
 
       {/* 搜索 */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="搜索内容..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="px-4 py-2 border rounded-lg w-64"
+      <Card style={{ marginBottom: 16 }}>
+        <Input
+          placeholder="搜索内容名称或ID..."
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          style={{ maxWidth: 300 }}
+          allowClear
         />
-      </div>
+      </Card>
 
       {/* 内容列表 */}
-      {loading ? (
-        <div className="text-center py-12">加载中...</div>
-      ) : filteredData.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">暂无数据</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">内容</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">类型</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">浏览量</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">独立访客</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">平均停留</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">互动数</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">最后浏览</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">热度</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredData.sort((a, b) => b.viewCount - a.viewCount).map((item) => (
-                <tr key={`${item.contentType}-${item.contentId}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="font-medium">{item.contentName || item.contentId}</div>
-                    <div className="text-xs text-gray-500">{item.contentId}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <TypeBadge type={item.contentType} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-blue-600 font-semibold">{(item.viewCount || 0).toLocaleString()}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {(item.uniqueViewers || 0).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                    {formatDuration(item.avgDuration)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={item.interactionCount > 0 ? 'text-purple-600' : 'text-gray-400'}>
-                      {(item.interactionCount || 0).toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {item.lastViewedAt ? new Date(item.lastViewedAt).toLocaleDateString() : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <HeatBar value={item.viewCount} max={filteredData[0]?.viewCount || 1} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Top 内容 */}
-      {summary.topContent && summary.topContent.length > 0 && (
-        <div className="mt-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">🔥 热门内容 TOP 5</h2>
-          <div className="space-y-3">
-            {summary.topContent.map((item, idx) => (
-              <div key={item.contentId} className="flex items-center gap-4">
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
-                  idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-orange-400' : 'bg-blue-300'
-                }`}>
-                  {idx + 1}
-                </span>
-                <div className="flex-1">
-                  <div className="font-medium">{item.contentName || item.contentId}</div>
-                  <div className="text-xs text-gray-500">{item.contentType}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-blue-600">{(item.viewCount || 0).toLocaleString()}</div>
-                  <div className="text-xs text-gray-500">浏览</div>
-                </div>
-              </div>
-            ))}
+      <Card>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>加载中...</div>
+        ) : data.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: textMuted }}>
+            {filterText || selectedType ? '筛选结果为空' : '暂无数据'}
           </div>
-        </div>
+        ) : (
+          <Table
+            dataSource={data.sort((a, b) => b.viewCount - a.viewCount)}
+            rowKey={(record) => `${record.contentType}-${record.contentId}`}
+            pagination={{ 
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total: number) => `共 ${total} 条内容`,
+              pageSizeOptions: ['10', '20', '50', '100'],
+            }}
+            columns={columns}
+            size="small"
+          />
+        )}
+      </Card>
+
+      {/* 热门内容 */}
+      {summary.topContent && summary.topContent.length > 0 && (
+        <Card style={{ marginTop: 24 }} title={<span style={{ color: textPrimary }}>🔥 热门内容 TOP 5</span>}>
+          {summary.topContent.map((item, idx) => (
+            <div 
+              key={item.contentId} 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 12, 
+                padding: '12px 0',
+                borderBottom: idx < summary.topContent.length - 1 ? `1px solid ${isDark ? '#374151' : '#f3f4f6'}` : 'none'
+              }}
+            >
+              <span style={{
+                width: 28, height: 28, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                background: idx === 0 ? '#f59e0b' : idx === 1 ? '#9ca3af' : idx === 2 ? '#f97316' : infoColor,
+                color: '#fff', fontWeight: 'bold', fontSize: 12
+              }}>
+                {idx + 1}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500, color: textPrimary }}>{item.contentName || item.contentId}</div>
+                <div style={{ fontSize: 12, color: textMuted }}>{TYPE_CONFIG[item.contentType]?.label || item.contentType}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 600, color: infoColor }}>{(item.viewCount || 0).toLocaleString()}</div>
+                <div style={{ fontSize: 12, color: textMuted }}>浏览</div>
+              </div>
+            </div>
+          ))}
+        </Card>
       )}
     </div>
   )
 }
 
-// 类型徽章
-function TypeBadge({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    tool: 'bg-purple-100 text-purple-800',
-    page: 'bg-blue-100 text-blue-800',
-    article: 'bg-green-100 text-green-800',
-    module: 'bg-orange-100 text-orange-800',
-  }
-  
-  const labels: Record<string, string> = {
-    tool: '工具',
-    page: '页面',
-    article: '文章',
-    module: '模块',
-  }
-  
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[type] || 'bg-gray-100 text-gray-800'}`}>
-      {labels[type] || type}
-    </span>
-  )
-}
-
-// 热度条
-function HeatBar({ value, max }: { value: number; max: number }) {
-  const percentage = max > 0 ? (value / max) * 100 : 0
-  
-  // 根据热度值返回不同的颜色
-  const getColor = () => {
-    if (percentage >= 80) return 'bg-red-500'
-    if (percentage >= 60) return 'bg-orange-500'
-    if (percentage >= 40) return 'bg-yellow-500'
-    return 'bg-blue-400'
-  }
-  
-  return (
-    <div className="w-24 bg-gray-200 rounded-full h-2">
-      <div 
-        className={`h-2 rounded-full ${getColor()}`}
-        style={{ width: `${percentage}%` }}
-      />
-    </div>
-  )
-}
-
-// 格式化时长
 function formatDuration(seconds: number): string {
   if (!seconds) return '-'
   if (seconds < 60) return `${seconds}秒`

@@ -1,16 +1,18 @@
 /**
- * 询盘管理页面 - 真实数据版
+ * 询盘管理页面
+ * 多彩渐变设计风格
  */
 
 'use client'
 
 import { useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { Table, Card, Input, Select, Button, Space, Tag, Form, Drawer, Modal, message, Empty } from 'antd'
+import { Table, Card, Input, Select, Button, Space, Tag, Form, Drawer, Modal, message, Empty, Row, Col, Statistic } from 'antd'
 import { SearchOutlined, PlusOutlined, ExportOutlined, PhoneOutlined, MessageOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
+import { useTheme } from '@/components/AdminLayout'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
@@ -18,7 +20,6 @@ dayjs.locale('zh-cn')
 const { Option } = Select
 const { TextArea } = Input
 
-// 从 URL 参数获取当前租户
 function useTenantFromURL() {
   const searchParams = useSearchParams()
   return searchParams.get('tenant') || 'zxqconsulting'
@@ -41,8 +42,17 @@ interface Inquiry {
   updated_at: string
 }
 
+// 多彩状态卡片
+const STATUS_CARDS = [
+  { key: 'pending', label: '待处理', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', icon: '⏳' },
+  { key: 'following', label: '跟进中', gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', icon: '📞' },
+  { key: 'completed', label: '已成交', gradient: 'linear-gradient(135deg, #10b981, #059669)', icon: '✅' },
+  { key: 'failed', label: '已流失', gradient: 'linear-gradient(135deg, #6b7280, #4b5563)', icon: '❌' },
+]
+
 export default function InquiriesPage() {
   const TENANT = useTenantFromURL()
+  const { textMuted, textSecondary, textPrimary, isDark } = useTheme()
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -55,6 +65,7 @@ export default function InquiriesPage() {
   const [form] = Form.useForm()
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
 
   const fetchInquiries = useCallback(async (status?: string, pg = 1) => {
     setLoading(true)
@@ -76,7 +87,24 @@ export default function InquiriesPage() {
     }
   }, [pageSize])
 
+  // 获取各状态数量
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/inquiries?tenant=${TENANT}&limit=1`)
+      const data = await res.json()
+      // 从列表数据计算各状态数量
+      if (data.data) {
+        const counts: Record<string, number> = { pending: 0, following: 0, completed: 0, failed: 0 }
+        // 需要从API获取总数，这里简化处理
+        setStatusCounts(data.summary || counts)
+      }
+    } catch (e) {
+      console.error('Status counts error:', e)
+    }
+  }, [TENANT])
+
   useEffect(() => { fetchInquiries() }, [fetchInquiries, TENANT])
+  useEffect(() => { fetchStatusCounts() }, [fetchStatusCounts])
 
   const handleSave = async () => {
     if (!selectedInquiry) return
@@ -127,8 +155,8 @@ export default function InquiriesPage() {
       width: 160,
       render: (_: unknown, r: Inquiry) => (
         <Space direction="vertical" size={0}>
-          <span style={{ fontWeight: 500 }}>{r.name || '匿名'}</span>
-          {r.company && <span style={{ color: '#888', fontSize: 12 }}>{r.company}</span>}
+          <span style={{ fontWeight: 500, color: textPrimary }}>{r.name || '匿名'}</span>
+          {r.company && <span style={{ color: textMuted, fontSize: 12 }}>{r.company}</span>}
         </Space>
       ),
     },
@@ -138,9 +166,9 @@ export default function InquiriesPage() {
       width: 170,
       render: (_: unknown, r: Inquiry) => (
         <Space direction="vertical" size={0}>
-          {r.phone && <span>{r.phone}</span>}
-          {r.email && <span style={{ color: '#888', fontSize: 12 }}>{r.email}</span>}
-          {!r.phone && !r.email && <span style={{ color: '#ccc' }}>未留联系方式</span>}
+          {r.phone && <span style={{ color: '#06b6d4' }}>{r.phone}</span>}
+          {r.email && <span style={{ color: textMuted, fontSize: 12 }}>{r.email}</span>}
+          {!r.phone && !r.email && <span style={{ color: textMuted }}>未留联系方式</span>}
         </Space>
       ),
     },
@@ -150,8 +178,8 @@ export default function InquiriesPage() {
       width: 140,
       render: (_: unknown, r: Inquiry) => (
         <Space direction="vertical" size={0}>
-          {r.product_type && <Tag>{r.product_type}</Tag>}
-          {r.target_market && <Tag color="blue">{r.target_market}</Tag>}
+          {r.product_type && <Tag color="purple">{r.product_type}</Tag>}
+          {r.target_market && <Tag color="cyan">{r.target_market}</Tag>}
         </Space>
       ),
     },
@@ -217,25 +245,42 @@ export default function InquiriesPage() {
       key: 'action',
       width: 100,
       render: (_: unknown, record: Inquiry) => (
-        <Space>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              setSelectedInquiry(record)
-              form.setFieldsValue({ status: record.status, priority: record.priority, assignee: record.assignee })
-              setDrawerVisible(true)
-            }}
-          >
-            跟进
-          </Button>
-        </Space>
+        <Button
+          type="link"
+          size="small"
+          onClick={() => {
+            setSelectedInquiry(record)
+            form.setFieldsValue({ status: record.status, priority: record.priority, assignee: record.assignee })
+            setDrawerVisible(true)
+          }}
+        >
+          跟进
+        </Button>
       ),
     },
   ]
 
   return (
     <div>
+      {/* 多彩状态卡片 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {STATUS_CARDS.map((card) => (
+          <Col xs={12} sm={6} key={card.key}>
+            <Card
+              hoverable
+              style={{ background: card.gradient, border: 'none' }}
+              bodyStyle={{ padding: '16px', textAlign: 'center' }}
+              onClick={() => { setStatusFilter(card.key); setPage(1); fetchInquiries(card.key, 1) }}
+            >
+              <div style={{ color: '#fff' }}>
+                <div style={{ fontSize: 24, marginBottom: 4 }}>{card.icon}</div>
+                <div style={{ opacity: 0.9, fontSize: 12 }}>{card.label}</div>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
       <Card>
         <div style={{ marginBottom: 16 }}>
           <Space wrap>
@@ -259,7 +304,7 @@ export default function InquiriesPage() {
               const url = `/api/admin/export?tenant=${TENANT}&type=inquiries`
               window.open(url, '_blank')
             }}>导出</Button>
-            <span style={{ color: '#888' }}>共 {total} 条询盘</span>
+            <span style={{ color: textMuted }}>共 {total} 条询盘</span>
           </Space>
         </div>
         <Table
@@ -267,11 +312,15 @@ export default function InquiriesPage() {
           dataSource={inquiries}
           rowKey="id"
           loading={loading}
-          locale={{ emptyText: <Empty description="暂无询盘数据，等待用户通过网站表单提交" /> }}
+          locale={{ emptyText: <Empty description="暂无询盘数据" /> }}
           pagination={{
             current: page,
             pageSize,
             total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total: number) => `共 ${total} 条询盘`,
+            pageSizeOptions: ['10', '20', '50', '100'],
             onChange: (p) => { setPage(p); fetchInquiries(statusFilter, p) },
           }}
         />
@@ -289,15 +338,15 @@ export default function InquiriesPage() {
       >
         {selectedInquiry && (
           <div>
-            <div style={{ marginBottom: 24, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
+            <div style={{ marginBottom: 24, padding: 16, background: isDark ? '#374151' : '#f5f5f5', borderRadius: 8 }}>
               <h3 style={{ margin: '0 0 4px' }}>{selectedInquiry.name || '匿名用户'}</h3>
-              <p style={{ margin: '0 0 8px', color: '#666' }}>{selectedInquiry.company || '未填写公司'}</p>
+              <p style={{ margin: '0 0 8px', color: textSecondary }}>{selectedInquiry.company || '未填写公司'}</p>
               <Space>
                 {selectedInquiry.product_type && <Tag>{selectedInquiry.product_type}</Tag>}
                 {selectedInquiry.target_market && <Tag color="blue">{selectedInquiry.target_market}</Tag>}
               </Space>
               {selectedInquiry.message && (
-                <p style={{ margin: '12px 0 0', color: '#333', fontSize: 13 }}>{selectedInquiry.message}</p>
+                <p style={{ margin: '12px 0 0', color: textPrimary, fontSize: 13 }}>{selectedInquiry.message}</p>
               )}
             </div>
 
@@ -344,7 +393,6 @@ export default function InquiriesPage() {
         )}
       </Drawer>
 
-      {/* 新建询盘弹窗 */}
       <Modal
         title="新建询盘"
         open={createModalVisible}

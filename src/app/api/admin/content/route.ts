@@ -38,16 +38,16 @@ export async function GET(request: NextRequest) {
       LIMIT 20
     `
 
-    // 从 tool_interactions 获取工具使用数据
+    // 从 tool_interactions 获取工具使用数据 - 使用 LOWER 函数合并同名称数据
     const toolStats = await sql`
       SELECT 
-        tool_name,
+        LOWER(tool_name) as tool_name,
         COUNT(*) AS view_count,
         COUNT(DISTINCT visitor_id) AS unique_viewers,
         COUNT(CASE WHEN action = 'tool_complete' THEN 1 END) AS interaction_count
       FROM public.tool_interactions
       WHERE tenant_id = ${tenantId}
-      GROUP BY tool_name
+      GROUP BY LOWER(tool_name)
       ORDER BY view_count DESC
       LIMIT 20
     `

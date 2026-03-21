@@ -21,6 +21,36 @@ const mockTenants: Record<string, string> = {
   zero: 'tenant_002',
   demo: 'tenant_003',
   'import-website': 'tenant_004',
+  global2china: 'tenant_005',
+  africa: 'tenant_006',
+}
+
+// 自动注册缺失的租户（如果数据库中没有该 slug，自动创建一条记录）
+async function ensureTenantExists(slug: string): Promise<string | null> {
+  if (!sql) return mockTenants[slug] ?? null
+  try {
+    // 先尝试查询
+    const existing = await sql`SELECT id FROM public.tenants WHERE slug = ${slug} LIMIT 1`
+    if (existing.length > 0) return String(existing[0].id)
+
+    // 不存在则自动创建
+    const inserted = await sql`
+      INSERT INTO public.tenants (name, slug, domain, settings)
+      VALUES (
+        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug},
+        ${slug},
+        ${slug + '.vercel.app'},
+        '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'
+      )
+      ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug
+      RETURNING id
+    `
+    if (inserted.length > 0) return String(inserted[0].id)
+    return null
+  } catch (err) {
+    console.error('Error ensuring tenant exists:', err)
+    return null
+  }
 }
 
 // 处理 CORS 预检请求
@@ -30,6 +60,7 @@ export async function OPTIONS() {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
     },
   })
 }
@@ -40,6 +71,7 @@ export async function POST(request: NextRequest) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
   }
 
   try {
@@ -48,11 +80,13 @@ export async function POST(request: NextRequest) {
     const {
       event_type,
       tenant_slug,
+      tenant, // 也支持 tenant 字段
       session_id,
       visitor_id,
       timestamp,
       website_url,
       page_url,
+      page_path, // 支持前端发送的 page_path
       page_title,
       referrer,
       user_agent,
@@ -70,23 +104,38 @@ export async function POST(request: NextRequest) {
       event_data,
     } = body
 
+    // 使用 tenant_slug 或 tenant
+    const actualTenantSlug = tenant_slug || tenant
+
+    // 如果没有提供 timestamp，使用当前时间
+    const actualTimestamp = timestamp || new Date().toISOString()
+
     // 验证必要字段
-    if (!tenant_slug || !event_type || !timestamp) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders })
+    if (!actualTenantSlug || !event_type) {
+      console.log('Missing required fields:', { actualTenantSlug, event_type, body })
+      return NextResponse.json({ error: 'Missing required fields', received: body }, { status: 400, headers: corsHeaders })
     }
 
-    // 获取租户 ID
+    // 如果有 page_path 但没有 page_url，构建完整的 URL
+    const actualPageUrl = page_url || (page_path ? `https://${body.website_url?.split('/').slice(2).join('/') || 'unknown'}${page_path}` : website_url)
+
+    // 获取租户 ID（优先从数据库查找，找不到则自动注册）
     let tenantId: string | null = null
-    console.log('Tracking request:', { tenant_slug, isDbConfigured })
+    console.log('Tracking request:', { actualTenantSlug, isDbConfigured })
     if (isDbConfigured) {
-      tenantId = await getTenantIdBySlug(tenant_slug)
+      tenantId = await getTenantIdBySlug(actualTenantSlug)
+      // 数据库中找不到租户 → 自动注册（创建 tenants 记录）
+      if (!tenantId) {
+        console.log('Tenant not found in database, auto-registering:', actualTenantSlug)
+        tenantId = await ensureTenantExists(actualTenantSlug)
+      }
     } else {
-      tenantId = mockTenants[tenant_slug] ?? null
+      tenantId = mockTenants[actualTenantSlug] ?? null
     }
 
     if (!tenantId) {
-      console.log('Invalid tenant:', tenant_slug)
-      return NextResponse.json({ error: 'Invalid tenant', tenant: tenant_slug }, { status: 400, headers: corsHeaders })
+      console.log('Invalid tenant:', actualTenantSlug)
+      return NextResponse.json({ error: 'Invalid tenant', tenant: actualTenantSlug }, { status: 400, headers: corsHeaders })
     }
 
     if (isDbConfigured) {
@@ -97,7 +146,7 @@ export async function POST(request: NextRequest) {
         session_id,
         visitor_id,
         website_url,
-        page_url,
+        page_url: actualPageUrl,
         page_title,
         referrer,
         user_agent,
@@ -185,7 +234,7 @@ export async function POST(request: NextRequest) {
           console.log('[Unknown event type]', event_type)
       }
     } else {
-      console.log('[Mock Mode] Tracking event:', { event_type, tenant_slug, visitor_id, event_data })
+      console.log('[Mock Mode] Tracking event:', { event_type, actualTenantSlug, visitor_id, event_data })
     }
 
     return NextResponse.json({ success: true, mock: !isDbConfigured }, { headers: corsHeaders })
@@ -536,21 +585,53 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
     }
   }
 
-  // 获取地理信息（异步）
-  var geoInfo = {};
-  fetch('https://ipapi.co/json/')
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-      geoInfo = {
-        country: data.country_name || data.country || '',
-        region: data.region || '',
-        city: data.city || '',
-        isp: data.org || ''
-      };
-    })
-    .catch(function() {});
+  // 获取地理信息 - 使用多个备选方案
+  function getGeoInfo() {
+    return new Promise(function(resolve) {
+      // 方案1: ipapi.co (主要)
+      fetch('https://ipapi.co/json/')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (data && data.country_name) {
+            resolve({
+              country: data.country_name || data.country || '',
+              region: data.region || '',
+              city: data.city || '',
+              isp: data.org || ''
+            });
+            return;
+          }
+          // 备选方案2: ipwho.is
+          fetch('https://ipwho.is/')
+            .then(function(r) { return r.json(); })
+            .then(function(data2) {
+              if (data2 && data2.country) {
+                resolve({
+                  country: data2.country || '',
+                  region: data2.region || '',
+                  city: data2.city || '',
+                  isp: data2.connection?.isp || ''
+                });
+              } else {
+                resolve({ country: '', region: '', city: '', isp: '' });
+              }
+            })
+            .catch(function() { resolve({ country: '', region: '', city: '', isp: '' }); });
+        })
+        .catch(function() { resolve({ country: '', region: '', city: '', isp: '' }); });
+    });
+  }
 
   var deviceInfo = getDeviceInfo();
+  var geoInfoPromise = getGeoInfo();
+  var geoInfo = { country: '', region: '', city: '', isp: '' };
+  
+  // 等待地理信息获取后再发送初始页面浏览事件
+  geoInfoPromise.then(function(info) {
+    geoInfo = info;
+    // 地理信息获取后发送页面浏览事件
+    track('page_view', {page_path: window.location.pathname, page_title: document.title});
+  });
   
   function track(eventType, eventData) {
     var data = {
@@ -572,7 +653,7 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
       language: deviceInfo.language,
       // 访问来源
       traffic_source: getTrafficSource(),
-      // 地理信息
+      // 地理信息（异步获取的）
       geo_country: geoInfo.country || '',
       geo_region: geoInfo.region || '',
       geo_city: geoInfo.city || '',
@@ -590,9 +671,6 @@ function getEmbedCode(tenantSlug: string, baseUrl: string): string {
           keepalive: true
         }).catch(function(err) { console.error('[Tracking] Error:', err); });
   }
-  
-  // 页面浏览事件
-  track('page_view', {page_path: window.location.pathname, page_title: document.title});
   
   // 页面离开事件
   var pageStartTime = Date.now();

@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     `
 
     return NextResponse.json(rows.map(r => ({
-      date: String(r.date),
+      date: String(r.date).split('T')[0],
       visitors: Number(r.visitors),
       pageViews: Number(r.page_views),
     })))

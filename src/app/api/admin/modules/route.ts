@@ -1,99 +1,91 @@
 /**
  * 模块使用统计 API
- * 追踪用户对各模块的使用情况
+ * 从真实数据库追踪用户对各模块的使用情况
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { sql, isDbConfigured } from '@/lib/db'
 import { getTenantId } from '@/lib/tenant'
 
-// Mock 数据
-const mockModuleStats = {
-  bazi: { total: 150, completed: 89, abandoned: 35, avgTime: '4.2分钟', completionRate: 59.3 },
-  fengshui: { total: 98, completed: 56, abandoned: 22, avgTime: '3.8分钟', completionRate: 57.1 },
-  tarot: { total: 76, completed: 45, abandoned: 18, avgTime: '5.1分钟', completionRate: 59.2 },
-  market: { total: 45, completed: 32, abandoned: 8, avgTime: '6.5分钟', completionRate: 71.1 },
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const tenantSlug = searchParams.get('tenant')
 
-  // 租户验证
   if (!tenantSlug) {
     return NextResponse.json(
-      { error: 'Missing tenant parameter. Please provide a valid tenant slug.' },
+      { error: 'Missing tenant parameter' },
       { status: 401 }
     )
+  }
+
+  // 数据库未配置
+  if (!isDbConfigured || !sql) {
+    return NextResponse.json({ 
+      data: [], 
+      stats: {},
+      error: 'Database not configured'
+    })
   }
 
   const visitorId = searchParams.get('visitor_id')
   const moduleId = searchParams.get('module_id')
 
-  if (!isDbConfigured || !sql) {
-    const data = visitorId
-      ? Object.entries(mockModuleStats).map(([module, stats]) => ({ module, ...stats }))
-      : Object.entries(mockModuleStats).map(([module, stats]) => ({ module, ...stats }))
-    return NextResponse.json({ data, stats: mockModuleStats })
-  }
-
   try {
     const tenantId = await getTenantId(tenantSlug)
-    if (!tenantId) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+    if (!tenantId) {
+      return NextResponse.json({ data: [], stats: {} })
+    }
 
-    // 获取模块统计
+    // 从 tool_interactions 表获取模块统计 - 使用 LOWER 函数合并同名称数据
     let statsQuery
     if (visitorId) {
       statsQuery = await sql`
         SELECT
-          module_id,
+          LOWER(tool_name) as module_id,
           COUNT(*) AS total,
-          COUNT(CASE WHEN event_type='tool_complete' OR event_type='chat_end' THEN 1 END) AS completed,
-          COUNT(CASE WHEN event_type='tool_abandon' OR event_type='abandon' THEN 1 END) AS abandoned,
+          COUNT(CASE WHEN action='complete' THEN 1 END) AS completed,
+          COUNT(CASE WHEN action='abandon' THEN 1 END) AS abandoned,
           ROUND(AVG(duration_seconds)::numeric, 1) AS avg_seconds
-        FROM public.module_usage
-        WHERE tenant_id=${tenantId} AND visitor_id=${visitorId}
-        GROUP BY module_id
+        FROM public.tool_interactions
+        WHERE tenant_id = ${tenantId} AND visitor_id = ${visitorId}
+        GROUP BY LOWER(tool_name)
         ORDER BY total DESC
       `
     } else {
       statsQuery = await sql`
         SELECT
-          module_id,
-          module_name,
+          LOWER(tool_name) as module_id,
           COUNT(*) AS total,
-          COUNT(CASE WHEN event_type='tool_complete' OR event_type='chat_end' OR event_type='complete' THEN 1 END) AS completed,
-          COUNT(CASE WHEN event_type='tool_abandon' OR event_type='abandon' THEN 1 END) AS abandoned,
+          COUNT(CASE WHEN action='complete' THEN 1 END) AS completed,
+          COUNT(CASE WHEN action='abandon' THEN 1 END) AS abandoned,
           ROUND(AVG(duration_seconds)::numeric, 1) AS avg_seconds
-        FROM public.module_usage
-        WHERE tenant_id=${tenantId}
-        GROUP BY module_id, module_name
+        FROM public.tool_interactions
+        WHERE tenant_id = ${tenantId}
+        GROUP BY LOWER(tool_name)
         ORDER BY total DESC
       `
     }
 
-    // 获取特定用户的模块使用记录
+    // 获取使用记录 - 使用 LOWER 函数合并同名称数据
     let usageData: any[] = []
     if (visitorId) {
       usageData = await sql`
-        SELECT module_id, module_name, event_type, duration_seconds, conversation_turns, created_at
-        FROM public.module_usage
-        WHERE tenant_id=${tenantId} AND visitor_id=${visitorId}
+        SELECT id, visitor_id, LOWER(tool_name) as module_id, action, duration_seconds, conversation_turns, input_data, output_data, created_at
+        FROM public.tool_interactions
+        WHERE tenant_id = ${tenantId} AND visitor_id = ${visitorId}
         ORDER BY created_at DESC
         LIMIT 50
       `
-    }
-
-    // 获取特定模块的使用记录
-    if (moduleId) {
+    } else if (moduleId) {
       usageData = await sql`
-        SELECT module_id, module_name, event_type, duration_seconds, conversation_turns, input_params, output_result, created_at
-        FROM public.module_usage
-        WHERE tenant_id=${tenantId} AND module_id=${moduleId}
+        SELECT id, visitor_id, LOWER(tool_name) as module_id, action, duration_seconds, conversation_turns, input_data, output_data, created_at
+        FROM public.tool_interactions
+        WHERE tenant_id = ${tenantId} AND LOWER(tool_name) = ${moduleId.toLowerCase()}
         ORDER BY created_at DESC
         LIMIT 50
       `
     }
 
+    // 汇总统计数据
     const stats = statsQuery.reduce((acc, r) => {
       const total = Number(r.total)
       const completed = Number(r.completed)
@@ -114,6 +106,10 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Modules API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ 
+      data: [], 
+      stats: {},
+      error: String(error) 
+    }, { status: 500 })
   }
 }
