@@ -7,6 +7,7 @@ import { getTenantId } from '@/lib/tenant'
 
 // 工具名称中文映射
 const TOOL_NAME_MAPPING: Record<string, string> = {
+  // 知几命理网站工具
   ai_chat: 'AI智能对话', bazi: '八字算命', zhanbu: '占卜问卦', tarot: '塔罗牌',
   fengshui: '风水布局', dream: '周公解梦', zodiac: '星座运势', mbti: 'MBTI测试',
   palm: '手相分析', draw: '抽签', naming: '宝宝起名', company_naming: '公司起名',
@@ -16,6 +17,34 @@ const TOOL_NAME_MAPPING: Record<string, string> = {
   decision: '决策工作台', import: '进口商品分析', export: '出口市场分析',
   analysis_tab: '市场分析', feasibility_analysis: '可行性分析', full_analysis: '完整分析',
   home: '首页', about: '关于我们', contact: '联系我们', tools: '工具列表',
+  // AfricaZero 非洲零关税网站工具
+  tariff_calculator: '关税计算器', cost_calculator: '成本精算器',
+  hs_lookup: 'HS编码查询', origin_check: '原产地自测',
+  product_discovery: '选品发现', pricing: '定价页', dashboard: '数据面板',
+}
+
+// 动作名称中文映射
+const ACTION_MAPPING: Record<string, string> = {
+  // 通用动作
+  complete: '完成', completed: '完成', submit: '提交', view: '查看', done: '完成',
+  start: '开始', switch: '切换', select: '选择', click: '点击',
+  abandon: '放弃', cancel: '取消', reset: '重置', abandoned: '放弃', error: '错误',
+  input: '输入', tool_start: '开始', tool_input: '输入', tool_output: '输出',
+  tool_complete: '完成', tool_abandon: '放弃', save: '保存',
+  // AfricaZero 关税计算器动作
+  select_preset: '选择预置', search_hs: '搜索HS编码', change_destination: '切换目的地',
+  submit_success: '提交成功', submit_error: '提交失败', result_shown: '查看结果',
+  // AfricaZero 成本精算器动作
+  select_category: '选择品类',
+  // AfricaZero HS编码查询动作
+  browse_category: '浏览品类', quick_link: '快速链接',
+  // AfricaZero 原产地自测动作
+  // AfricaZero 选品发现动作
+  filter_change: '筛选变化', expand_product: '展开产品',
+  quick_preview_success: '快速预览成功', quick_preview_error: '快速预览失败',
+  add_interest: '添加关注', remove_interest: '移除关注', nav_to_tool: '导航到工具',
+  // AfricaZero 定价页/主页动作
+  cta_click: '点击CTA',
 }
 
 // 动作名称中文映射

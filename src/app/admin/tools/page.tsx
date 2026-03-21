@@ -60,6 +60,7 @@ interface PaginationInfo {
 
 // 工具名称映射
 const TOOL_NAMES: Record<string, string> = {
+  // 知几命理网站工具
   ai_chat: 'AI智能对话',
   bazi: '八字算命',
   zhanbu: '占卜问卦',
@@ -94,6 +95,28 @@ const TOOL_NAMES: Record<string, string> = {
   about: '关于我们',
   contact: '联系我们',
   tools: '工具列表',
+  // AfricaZero 非洲零关税网站工具
+  tariff_calculator: '关税计算器',
+  cost_calculator: '成本精算器',
+  hs_lookup: 'HS编码查询',
+  origin_check: '原产地自测',
+  product_discovery: '选品发现',
+  pricing: '定价页',
+  dashboard: '数据面板',
+  // AfricaZero 子动作
+  select_preset: '选择预置',
+  search_hs: '搜索HS编码',
+  change_destination: '切换目的地',
+  select_category: '选择品类',
+  browse_category: '浏览品类',
+  quick_link: '快速链接',
+  filter_change: '筛选变化',
+  expand_product: '展开产品',
+  add_interest: '添加关注',
+  remove_interest: '移除关注',
+  nav_to_tool: '导航到工具',
+  cta_click: '点击CTA',
+  click: '点击',
 }
 
 // 日期快捷选项

@@ -305,10 +305,42 @@ async function handleToolInteraction(
   const finalToolName = String(tool_name ?? module_id ?? analysis_mode ?? 'ai-analysis')
 
   // 已知的顶层字段（需要排除，避免重复存储）
+  // 包含：通用字段 + 知几工具字段 + AfricaZero 工具字段
   const knownFields = [
+    // 顶层基础字段
     'tool_name', 'tool_section', 'action', 'input_params', 'output_result',
-    'duration_ms', 'step_completed', 'total_steps', 'module_id', 'analysis_mode',
-    'result_summary', 'ai_result_content', 'ai_result_length'
+    'duration_ms', 'duration_seconds', 'step_completed', 'total_steps', 'module_id', 'analysis_mode',
+    'result_summary', 'ai_result_content', 'ai_result_length',
+    // 知几工具字段
+    'product_type', 'product_name', 'category_level1', 'category_level2',
+    'target_region', 'selected_market', 'user_role', 'business_stage',
+    'tab_id', 'tab_name', 'market_id', 'market_name',
+    'productCategory', 'productType', 'budgetRange', 'needAgent', 'needCompliance',
+    // AfricaZero 关税计算器字段
+    'hs_code', 'origin', 'destination', 'fob_value', 'quantity_kg', 'freight_mode',
+    'preset_label', 'group', 'query', 'result_count', 'market',
+    'tariff_amount_cny', 'savings_cny', 'qualified', 'error_message',
+    // AfricaZero 成本精算器字段
+    'category', 'product_label', 'fob_per_kg',
+    'total_cost_cny', 'suggested_retail_price_cny', 'payback_packages', 'has_certificate_guide',
+    // AfricaZero HS编码查询字段
+    'zero_tariff_count', 'target',
+    // AfricaZero 原产地自测字段
+    'processing_steps_count', 'qualifies', 'confidence', 'rule_applied',
+    // AfricaZero 选品发现字段
+    'filter', 'product_count', 'product_name', 'hs_code', 'success',
+    // AfricaZero 定价页/主页字段
+    'plan_id', 'plan_name', 'cta_label', 'target_path',
+    // 通用追踪字段
+    'click_duration_ms', 'form_completion_time_ms', 'scroll_depth', 'scroll_duration_ms',
+    'custom_duration_ms', 'page_path', 'page_title', 'viewport_width', 'viewport_height',
+    'time_on_page_ms', 'session_duration_ms', 'page_duration_ms',
+    'is_bounce', 'is_abandoned', 'is_completed', 'progress_percent',
+    // 用户信息字段
+    'visitor_name', 'visitor_email', 'visitor_phone', 'company_name', 'message',
+    // 其他业务字段
+    'test_version', 'mbti_type', 'answers_count',
+    'completed_steps', 'startTime', 'resultSummary', 'aiResultContent', 'aiResultLength',
   ]
 
   // 获取所有未知字段
@@ -323,6 +355,7 @@ async function handleToolInteraction(
   // 前端发送的是扁平字段，需要包装成 input_params/output_result 对象
   if (Object.keys(finalInputParams).length === 0) {
     finalInputParams = {
+      // 知几工具字段
       analysis_mode: eventData.analysis_mode,
       product_type: eventData.product_type,
       product_name: eventData.product_name,
@@ -332,7 +365,7 @@ async function handleToolInteraction(
       selected_market: eventData.selected_market,
       user_role: eventData.user_role,
       business_stage: eventData.business_stage,
-      // 新增：捕获其他所有字段（如 tabId, tabName, marketId, marketName, category 等）
+      // 知几 UI 字段
       tab_id: eventData.tabId,
       tab_name: eventData.tabName,
       market_id: eventData.marketId,
@@ -343,6 +376,33 @@ async function handleToolInteraction(
       budgetRange: eventData.budgetRange,
       needAgent: eventData.needAgent,
       needCompliance: eventData.needCompliance,
+      // AfricaZero 关税计算器字段
+      hs_code: eventData.hs_code,
+      origin: eventData.origin,
+      destination: eventData.destination,
+      fob_value: eventData.fob_value,
+      quantity_kg: eventData.quantity_kg,
+      freight_mode: eventData.freight_mode,
+      preset_label: eventData.preset_label,
+      group: eventData.group,
+      market: eventData.market,
+      // AfricaZero 成本精算器字段
+      product_label: eventData.product_label,
+      fob_per_kg: eventData.fob_per_kg,
+      // AfricaZero 原产地自测字段
+      processing_steps_count: eventData.processing_steps_count,
+      // AfricaZero 选品发现字段
+      filter: eventData.filter,
+      product_count: eventData.product_count,
+      // AfricaZero 定价页/主页字段
+      plan_id: eventData.plan_id,
+      plan_name: eventData.plan_name,
+      cta_label: eventData.cta_label,
+      target_path: eventData.target_path,
+      // MBTI 测试字段
+      test_version: eventData.test_version,
+      mbti_type: eventData.mbti_type,
+      answers_count: eventData.answers_count,
       // 动态添加其他未知字段
       ...unknownFields
     }
@@ -356,9 +416,25 @@ async function handleToolInteraction(
 
   if (Object.keys(finalOutputResult).length === 0) {
     finalOutputResult = {
+      // 知几结果字段
       result_summary: eventData.result_summary,
       ai_result_content: eventData.ai_result_content,
       ai_result_length: eventData.ai_result_length,
+      // AfricaZero 关税计算器结果字段
+      qualified: eventData.qualified,
+      tariff_amount_cny: eventData.tariff_amount_cny,
+      savings_cny: eventData.savings_cny,
+      // AfricaZero 成本精算器结果字段
+      total_cost_cny: eventData.total_cost_cny,
+      suggested_retail_price_cny: eventData.suggested_retail_price_cny,
+      payback_packages: eventData.payback_packages,
+      has_certificate_guide: eventData.has_certificate_guide,
+      // AfricaZero 原产地自测结果字段
+      qualifies: eventData.qualifies,
+      confidence: eventData.confidence,
+      rule_applied: eventData.rule_applied,
+      // 错误信息
+      error_message: eventData.error_message,
     }
     // 移除空值
     Object.keys(finalOutputResult).forEach(key => {
