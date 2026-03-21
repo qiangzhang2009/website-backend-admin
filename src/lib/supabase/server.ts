@@ -4,6 +4,7 @@
  */
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { resolveTenantSlug } from '@/lib/tenant-resolve'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -27,11 +28,13 @@ export const supabaseAdmin = isConfigured
 // 从slug获取租户ID
 export async function getTenantIdBySlug(slug: string): Promise<string | null> {
   if (!supabaseAdmin) return null
-  
+
+  const canonical = resolveTenantSlug(slug) ?? slug
+
   const { data, error } = await supabaseAdmin
     .from('tenants')
     .select('id')
-    .eq('slug', slug)
+    .eq('slug', canonical)
     .single()
 
   if (error || !data) {

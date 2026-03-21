@@ -106,7 +106,8 @@ export default function RealtimeDashboardPage() {
           >
             <option value="zxqconsulting">主站</option>
             <option value="zero">知几命理</option>
-            <option value="import-website">进口咨询</option>
+            <option value="global2china">Global2China</option>
+            <option value="africa">AfricaZero</option>
           </select>
           <button
             onClick={fetchData}

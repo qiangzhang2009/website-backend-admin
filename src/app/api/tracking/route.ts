@@ -14,13 +14,13 @@ import {
   insertChatMessage,
   sql,
 } from '@/lib/db'
+import { resolveTenantSlug } from '@/lib/tenant-resolve'
 
 // Mock 租户数据（当数据库未配置时使用）
 const mockTenants: Record<string, string> = {
   zxqconsulting: 'tenant_001',
   zero: 'tenant_002',
   demo: 'tenant_003',
-  'import-website': 'tenant_004',
   global2china: 'tenant_005',
   africa: 'tenant_006',
 }
@@ -102,8 +102,9 @@ export async function POST(request: NextRequest) {
       event_data,
     } = body
 
-    // 使用 tenant_slug 或 tenant
-    const actualTenantSlug = tenant_slug || tenant
+    // 使用 tenant_slug 或 tenant；import-website 与 global2china 合并为 canonical slug
+    const rawTenantSlug = tenant_slug || tenant
+    const actualTenantSlug = resolveTenantSlug(rawTenantSlug) ?? rawTenantSlug
 
     // 如果没有提供 timestamp，使用当前时间
     const actualTimestamp = timestamp || new Date().toISOString()

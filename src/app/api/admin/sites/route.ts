@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { sql, isDbConfigured } from '@/lib/db'
+import { resolveTenantSlug } from '@/lib/tenant-resolve'
 
 export async function GET() {
   if (!isDbConfigured || !sql) {
@@ -66,11 +67,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'name and slug are required' }, { status: 400 })
     }
 
+    const slugNorm = String(slug).trim()
+    if (resolveTenantSlug(slugNorm) !== slugNorm) {
+      return NextResponse.json(
+        {
+          error:
+            '该租户标识已合并：import-website 与 global2china 为同一站点，请使用 slug「global2china」',
+        },
+        { status: 400 }
+      )
+    }
+
     const rows = await sql`
       INSERT INTO public.tenants (name, slug, domain, timezone, language, settings)
       VALUES (
         ${name},
-        ${slug},
+        ${slugNorm},
         ${domain ?? null},
         ${timezone},
         ${language},

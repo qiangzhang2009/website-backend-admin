@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
+import { resolveTenantSlug } from '@/lib/tenant-resolve'
 
 /**
  * 获取租户 ID
@@ -12,9 +13,11 @@ import { sql } from '@/lib/db'
  */
 export async function getTenantId(tenantSlug: string | null): Promise<string | null> {
   if (!tenantSlug || !sql) return null
-  
+
+  const canonical = resolveTenantSlug(tenantSlug) ?? tenantSlug
+
   try {
-    const rows = await sql`SELECT id FROM public.tenants WHERE slug = ${tenantSlug} LIMIT 1`
+    const rows = await sql`SELECT id FROM public.tenants WHERE slug = ${canonical} LIMIT 1`
     return rows[0]?.id ?? null
   } catch (error) {
     console.error('Error fetching tenant:', error)

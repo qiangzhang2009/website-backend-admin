@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 // 包含完整的 duration 字段采集
 const SDK_SOURCE = `/**
  * 统一网站追踪 SDK - 增强版
- * 适用于: zxqconsulting-web1, zero2, import-website
+ * 适用于: zxqconsulting-web1, zero2, global2china（原 import-website 已合并）
  * 版本: 1.2.0
  * 包含完整的 duration 字段采集
  * 支持跨域追踪：自动从 SDK 脚本 URL 提取后端 origin

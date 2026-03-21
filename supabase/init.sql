@@ -270,7 +270,7 @@ CREATE POLICY "tracking_events_insert" ON public.tracking_events FOR INSERT WITH
 INSERT INTO public.tenants (name, slug, domain, settings) VALUES
     ('zxqconsulting网站', 'zxqconsulting', 'www.zxqconsulting.com', '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'),
     ('知几命理网站', 'zero', 'zero.zxqconsulting.com', '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'),
-    ('进口服务网站', 'import-website', 'import-website.vercel.app', '{"features": {"userProfile": false, "inquiry": true, "analytics": true, "tools": true}}')
+    ('Global2China 全球优品', 'global2china', 'global2china.zxqconsulting.com', '{"features": {"userProfile": false, "inquiry": true, "analytics": true, "tools": true}}')
 ON CONFLICT (slug) DO NOTHING;
 
 -- =============================================

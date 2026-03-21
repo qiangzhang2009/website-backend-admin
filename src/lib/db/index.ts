@@ -4,6 +4,7 @@
  */
 
 import { neon } from '@neondatabase/serverless'
+import { resolveTenantSlug } from '@/lib/tenant-resolve'
 
 const databaseUrl = process.env.DATABASE_URL || ''
 
@@ -21,9 +22,11 @@ export const isDbConfigured = !!databaseUrl
 export async function getTenantIdBySlug(slug: string): Promise<string | null> {
   if (!sql) return null
 
+  const canonical = resolveTenantSlug(slug) ?? slug
+
   try {
     const rows = await sql`
-      SELECT id FROM public.tenants WHERE slug = ${slug} LIMIT 1
+      SELECT id FROM public.tenants WHERE slug = ${canonical} LIMIT 1
     `
     return rows[0]?.id ?? null
   } catch (error) {

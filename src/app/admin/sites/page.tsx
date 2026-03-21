@@ -40,7 +40,7 @@ interface SiteRecord {
 const TENANT_URLS: Record<string, string> = {
   'zxqconsulting': 'https://zxqconsulting-web1-ixh7elg6g-johnzhangs-projects-50e83ec4.vercel.app',
   'zero': 'https://zero2-80h93287m-johnzhangs-projects-50e83ec4.vercel.app',
-  'import-website': 'https://import-website-86vsj0u9d-johnzhangs-projects-50e83ec4.vercel.app',
+  /** Global2China 唯一对外域名 global2china.zxqconsulting.com（import-website 已合并） */
   'global2china': 'https://global2china.zxqconsulting.com',
   'africa': 'https://africa.zxqconsulting.com',
   'starloom': 'https://starloom.vercel.app',
