@@ -20,13 +20,14 @@ const SDK_SOURCE = `/**
     _backendOrigin: '' // 从 SDK 脚本 URL 提取的后端 origin
   };
   
-  // 立即从加载的 SDK 脚本 URL 提取后端 origin
+  // 立即从加载的 SDK 脚本 URL 提取后端 origin（self-referencing：找 src 包含 tracking-sdk 的脚本）
   (function detectBackendOrigin() {
     var scripts = global.document && global.document.getElementsByTagName('script');
     if (!scripts) return;
     for (var i = 0; i < scripts.length; i++) {
       var src = scripts[i].src || '';
-      if (src.indexOf('tracking-sdk') !== -1 && src.indexOf('backend-admin') !== -1) {
+      // 找自身脚本（src 中包含 tracking-sdk）
+      if (src.indexOf('tracking-sdk') !== -1) {
         try {
           var u = new global.URL(src);
           config._backendOrigin = u.origin;
@@ -399,7 +400,10 @@ export async function GET(request: Request) {
   return new Response(configuredSdk, {
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+      // 禁用所有缓存，确保 SDK 始终是最新的（Edge Runtime 不支持 stale-while-revalidate）
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
     },
   });
 }
