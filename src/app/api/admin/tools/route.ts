@@ -47,15 +47,6 @@ const ACTION_MAPPING: Record<string, string> = {
   cta_click: '点击CTA',
 }
 
-// 动作名称中文映射
-const ACTION_MAPPING: Record<string, string> = {
-  complete: '完成', completed: '完成', submit: '提交', view: '查看', done: '完成',
-  start: '开始', switch: '切换', select: '选择',
-  abandon: '放弃', cancel: '取消', reset: '重置', abandoned: '放弃',
-  input: '输入', tool_start: '开始', tool_input: '输入', tool_output: '输出',
-  tool_complete: '完成', tool_abandon: '放弃', save: '保存',
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const tenantSlug = searchParams.get('tenant')
