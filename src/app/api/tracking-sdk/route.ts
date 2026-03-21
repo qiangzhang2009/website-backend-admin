@@ -366,8 +366,8 @@ export async function GET(request: Request) {
   const tenant = searchParams.get('tenant') || 'zxqconsulting';
   
   // 根据租户获取对应的 API URL（使用最新部署的版本）
-  // 当前最新部署: website-backend-admin-3nghix1c7-johnzhangs-projects-50e83ec4.vercel.app
-  const currentApiUrl = 'https://website-backend-admin-3nghix1c7-johnzhangs-projects-50e83ec4.vercel.app/api/tracking';
+  // 当前最新部署: website-backend-admin-cq6hk2w6e-johnzhangs-projects-50e83ec4.vercel.app
+  const currentApiUrl = 'https://website-backend-admin-cq6hk2w6e-johnzhangs-projects-50e83ec4.vercel.app/api/tracking';
   const tenantApiUrls: Record<string, string> = {
     'zxqconsulting': currentApiUrl,
     'zero': currentApiUrl,
