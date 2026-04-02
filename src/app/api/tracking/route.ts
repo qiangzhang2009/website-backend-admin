@@ -23,6 +23,7 @@ const mockTenants: Record<string, string> = {
   demo: 'tenant_003',
   global2china: 'tenant_005',
   africa: 'tenant_006',
+  globaltrade: 'tenant_007',
 }
 
 // 自动注册缺失的租户（如果数据库中没有该 slug，自动创建一条记录）
@@ -37,7 +38,7 @@ async function ensureTenantExists(slug: string): Promise<string | null> {
     const inserted = await sql`
       INSERT INTO public.tenants (name, slug, domain, settings)
       VALUES (
-        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug},
+        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug === 'globaltrade' ? 'TradeRoot 全球贸易导航' : slug},
         ${slug},
         ${slug + '.vercel.app'},
         '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'
@@ -59,6 +60,9 @@ const ALLOWED_ORIGINS = [
   'https://global2china.zxqconsulting.com',
   'https://zero.zxqconsulting.com',
   'https://www.zxqconsulting.com',
+  'https://global-trade-two.vercel.app',
+  'https://global-trade.vercel.app',
+  'https://traderoot.vercel.app',
 ]
 
 // 获取动态 CORS origin（根据请求来源动态设置，避免 * 通配符与 credentials 冲突）
@@ -76,6 +80,7 @@ export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     headers: {
       'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest) {
   const origin = getCorsOrigin(request)
   const corsHeaders = {
     'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   }
