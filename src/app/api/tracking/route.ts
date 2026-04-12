@@ -24,6 +24,7 @@ const mockTenants: Record<string, string> = {
   global2china: 'tenant_005',
   africa: 'tenant_006',
   globaltrade: 'tenant_007',
+  prismatic: 'tenant_008',
 }
 
 // 自动注册缺失的租户（如果数据库中没有该 slug，自动创建一条记录）
@@ -38,9 +39,9 @@ async function ensureTenantExists(slug: string): Promise<string | null> {
     const inserted = await sql`
       INSERT INTO public.tenants (name, slug, domain, settings)
       VALUES (
-        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug === 'globaltrade' ? 'TradeRoot 全球贸易导航' : slug},
+        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug === 'globaltrade' ? 'TradeRoot 全球贸易导航' : slug === 'prismatic' ? 'Prismatic 认知蒸馏平台' : slug},
         ${slug},
-        ${slug + '.vercel.app'},
+        ${slug === 'prismatic' ? 'prismatic-app.vercel.app' : slug + '.vercel.app'},
         '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'
       )
       ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug
@@ -63,6 +64,8 @@ const ALLOWED_ORIGINS = [
   'https://global-trade-two.vercel.app',
   'https://global-trade.vercel.app',
   'https://traderoot.vercel.app',
+  'https://prismatic-app.vercel.app',
+  'https://www.prismatic.ai',
 ]
 
 // 获取动态 CORS origin（根据请求来源动态设置，避免 * 通配符与 credentials 冲突）
