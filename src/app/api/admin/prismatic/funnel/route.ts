@@ -1,41 +1,31 @@
 /**
  * Prismatic Analytics - 转化漏斗 API
+ * 从 Prismatic App 的内置 API 获取数据
  * GET /api/admin/prismatic/funnel?tenant=prismatic&days=30
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getTenantIdBySlug, isDbConfigured } from '@/lib/db'
-import { getPrismaticFunnel } from '@/lib/db/prismatic'
 
-const mockTenants: Record<string, string> = {
-  prismatic: 'tenant_prismatic',
-  zxqconsulting: 'tenant_001',
-}
+const PRISMATIC_API_BASE = 'https://prismatic.zxqconsulting.com'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'prismatic'
   const days = parseInt(searchParams.get('days') || '30', 10)
 
   try {
-    let tenantId: string | null = null
+    const res = await fetch(
+      `${PRISMATIC_API_BASE}/api/analytics/overview?days=${days}`,
+      { next: { revalidate: 30 } }
+    )
 
-    if (isDbConfigured) {
-      tenantId = await getTenantIdBySlug(tenantSlug)
-      if (!tenantId) tenantId = mockTenants[tenantSlug] ?? null
-    } else {
-      tenantId = mockTenants[tenantSlug] ?? null
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to fetch data' }, { status: 502 })
     }
 
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
-    }
-
-    const funnel = await getPrismaticFunnel(tenantId, days)
-
-    return NextResponse.json({ steps: funnel })
+    const data = await res.json()
+    return NextResponse.json({ steps: data.funnel || [] })
   } catch (error) {
-    console.error('Prismatic funnel API error:', error)
+    console.error('Prismatic funnel proxy error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

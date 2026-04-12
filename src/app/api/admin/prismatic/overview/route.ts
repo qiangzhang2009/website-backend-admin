@@ -1,52 +1,31 @@
 /**
  * Prismatic Analytics - 总览 API
+ * 从 Prismatic App 的内置 API 获取数据
  * GET /api/admin/prismatic/overview?tenant=prismatic&days=7
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getTenantIdBySlug, isDbConfigured } from '@/lib/db'
-import { getPrismaticOverview, getPrismaticFunnel, getPrismaticTrend } from '@/lib/db/prismatic'
 
-const mockTenants: Record<string, string> = {
-  prismatic: 'tenant_prismatic',
-  zxqconsulting: 'tenant_001',
-}
+const PRISMATIC_API_BASE = 'https://prismatic.zxqconsulting.com'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'prismatic'
   const days = parseInt(searchParams.get('days') || '7', 10)
 
   try {
-    let tenantId: string | null = null
-
-    if (isDbConfigured) {
-      tenantId = await getTenantIdBySlug(tenantSlug)
-      if (!tenantId) {
-        // 自动注册
-        tenantId = mockTenants[tenantSlug] ?? null
-      }
-    } else {
-      tenantId = mockTenants[tenantSlug] ?? null
-    }
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
-    }
-
-    const [overview, funnel, trend] = await Promise.all([
-      getPrismaticOverview(tenantId, days),
-      getPrismaticFunnel(tenantId, days),
-      getPrismaticTrend(tenantId, days),
-    ])
-
-    return NextResponse.json({
-      overview,
-      funnel,
-      trend,
+    const res = await fetch(`${PRISMATIC_API_BASE}/api/analytics/overview?days=${days}`, {
+      next: { revalidate: 30 }, // Cache 30 seconds
     })
+
+    if (!res.ok) {
+      console.error('Failed to fetch from Prismatic API:', res.status)
+      return NextResponse.json({ error: 'Failed to fetch data' }, { status: 502 })
+    }
+
+    const data = await res.json()
+    return NextResponse.json(data)
   } catch (error) {
-    console.error('Prismatic overview API error:', error)
+    console.error('Prismatic overview proxy error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,45 +1,32 @@
 /**
  * Prismatic Analytics - 人物热度 API
- * GET /api/admin/prismatic/personas?tenant=prismatic&days=30&domain=philosophy&sort=views&order=desc
+ * 从 Prismatic App 的内置 API 获取数据
+ * GET /api/admin/prismatic/personas?tenant=prismatic&days=30
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getTenantIdBySlug, isDbConfigured } from '@/lib/db'
-import { getPrismaticPersonas } from '@/lib/db/prismatic'
 
-const mockTenants: Record<string, string> = {
-  prismatic: 'tenant_prismatic',
-  zxqconsulting: 'tenant_001',
-}
+const PRISMATIC_API_BASE = 'https://prismatic.zxqconsulting.com'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tenantSlug = searchParams.get('tenant') || 'prismatic'
   const days = parseInt(searchParams.get('days') || '30', 10)
-  const domain = searchParams.get('domain') || undefined
-  const sort = searchParams.get('sort') || 'views'
-  const order = (searchParams.get('order') || 'desc') as 'asc' | 'desc'
   const limit = parseInt(searchParams.get('limit') || '50', 10)
 
   try {
-    let tenantId: string | null = null
+    const res = await fetch(
+      `${PRISMATIC_API_BASE}/api/analytics/personas?days=${days}&limit=${limit}`,
+      { next: { revalidate: 30 } }
+    )
 
-    if (isDbConfigured) {
-      tenantId = await getTenantIdBySlug(tenantSlug)
-      if (!tenantId) tenantId = mockTenants[tenantSlug] ?? null
-    } else {
-      tenantId = mockTenants[tenantSlug] ?? null
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to fetch data' }, { status: 502 })
     }
 
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
-    }
-
-    const personas = await getPrismaticPersonas(tenantId, { days, domain, sort, order, limit })
-
-    return NextResponse.json({ personas })
+    const data = await res.json()
+    return NextResponse.json({ personas: data.personas || [] })
   } catch (error) {
-    console.error('Prismatic personas API error:', error)
+    console.error('Prismatic personas proxy error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
