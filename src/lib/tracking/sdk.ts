@@ -23,7 +23,9 @@ export interface TrackingEvent {
   user_agent?: string
   ip?: string
   geo_country?: string
+  geo_region?: string
   geo_city?: string
+  geo_isp?: string
   
   // 事件数据
   event_data?: Record<string, unknown>

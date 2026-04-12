@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [], stats: {} })
     }
 
-    // 从 tool_interactions 表获取模块统计 - 使用 LOWER 函数合并同名称数据
+    // 从 tool_interactions_v 视图获取模块统计 - 使用 LOWER 函数合并同名称数据
+    // 注意：tool_interactions_v 视图提供 duration_seconds 计算列（从 duration_ms 转换）
     let statsQuery
     if (visitorId) {
       statsQuery = await sql`
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
           COUNT(CASE WHEN action='complete' THEN 1 END) AS completed,
           COUNT(CASE WHEN action='abandon' THEN 1 END) AS abandoned,
           ROUND(AVG(duration_seconds)::numeric, 1) AS avg_seconds
-        FROM public.tool_interactions
+        FROM public.tool_interactions_v
         WHERE tenant_id = ${tenantId} AND visitor_id = ${visitorId}
         GROUP BY LOWER(tool_name)
         ORDER BY total DESC
@@ -58,27 +59,27 @@ export async function GET(request: NextRequest) {
           COUNT(CASE WHEN action='complete' THEN 1 END) AS completed,
           COUNT(CASE WHEN action='abandon' THEN 1 END) AS abandoned,
           ROUND(AVG(duration_seconds)::numeric, 1) AS avg_seconds
-        FROM public.tool_interactions
+        FROM public.tool_interactions_v
         WHERE tenant_id = ${tenantId}
         GROUP BY LOWER(tool_name)
         ORDER BY total DESC
       `
     }
 
-    // 获取使用记录 - 使用 LOWER 函数合并同名称数据
+    // 获取使用记录 - 使用 tool_interactions_v 视图，字段名与表一致
     let usageData: any[] = []
     if (visitorId) {
       usageData = await sql`
-        SELECT id, visitor_id, LOWER(tool_name) as module_id, action, duration_seconds, conversation_turns, input_data, output_data, created_at
-        FROM public.tool_interactions
+        SELECT id, visitor_id, LOWER(tool_name) as module_id, action, duration_seconds, conversation_turns, input_params, output_result, created_at
+        FROM public.tool_interactions_v
         WHERE tenant_id = ${tenantId} AND visitor_id = ${visitorId}
         ORDER BY created_at DESC
         LIMIT 50
       `
     } else if (moduleId) {
       usageData = await sql`
-        SELECT id, visitor_id, LOWER(tool_name) as module_id, action, duration_seconds, conversation_turns, input_data, output_data, created_at
-        FROM public.tool_interactions
+        SELECT id, visitor_id, LOWER(tool_name) as module_id, action, duration_seconds, conversation_turns, input_params, output_result, created_at
+        FROM public.tool_interactions_v
         WHERE tenant_id = ${tenantId} AND LOWER(tool_name) = ${moduleId.toLowerCase()}
         ORDER BY created_at DESC
         LIMIT 50

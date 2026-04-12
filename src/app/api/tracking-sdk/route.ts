@@ -2,13 +2,9 @@ import { NextResponse } from 'next/server';
 
 // 追踪 SDK 源码 - 增强版
 // 包含完整的 duration 字段采集
-const SDK_SOURCE = `/**
- * 统一网站追踪 SDK - 增强版
- * 适用于: zxqconsulting-web1, zero2, global2china（原 import-website 已合并）
- * 版本: 1.2.0
- * 包含完整的 duration 字段采集
- * 支持跨域追踪：自动从 SDK 脚本 URL 提取后端 origin
- */
+// 版本: 1.3.0 - 新增 IP 地理位置采集（ipapi.co + ipwho.is 备选），修复 country/city/region 为空的问题
+
+const SDK_SOURCE = `
 (function(global) {
   'use strict';
   
@@ -47,7 +43,55 @@ const SDK_SOURCE = `/**
   
   var visitorId = '', sessionId = '', sessionStartTime = 0, pageStartTime = 0;
   var toolStartTimes = {}; // 记录每个工具的开始时间
-  
+  var geoCache = { country: '', region: '', city: '', isp: '' }; // 地理信息缓存
+
+  // 获取地理信息 - 使用多个备选方案（与旧版嵌入代码一致）
+  function getGeoInfo() {
+    return new Promise(function(resolve) {
+      // 方案1: ipapi.co (主要)
+      fetch('https://ipapi.co/json/')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (data && (data.country_name || data.country)) {
+            geoCache = {
+              country: data.country_name || data.country || '',
+              region: data.region || '',
+              city: data.city || '',
+              isp: data.org || ''
+            };
+            resolve(geoCache);
+            return;
+          }
+          // 备选方案2: ipwho.is
+          fetch('https://ipwho.is/')
+            .then(function(r) { return r.json(); })
+            .then(function(data2) {
+              if (data2 && data2.country) {
+                geoCache = {
+                  country: data2.country || '',
+                  region: data2.region || '',
+                  city: data2.city || '',
+                  isp: data2.connection ? (data2.connection.isp || '') : ''
+                };
+                resolve(geoCache);
+              } else {
+                resolve(geoCache);
+              }
+            })
+            .catch(function() { resolve(geoCache); });
+        })
+        .catch(function() { resolve(geoCache); });
+    });
+  }
+
+  // 初始化地理信息（异步，不阻塞 SDK 初始化）
+  function initGeoInfo() {
+    getGeoInfo().then(function(info) {
+      geoCache = info;
+      if (config.debug) console.log('[ZxqTrack] Geo info:', info);
+    });
+  }
+
   // 生成唯一ID
   function generateId(prefix) { 
     return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); 
@@ -145,6 +189,11 @@ const SDK_SOURCE = `/**
       // 时长信息 (关键字段)
       session_duration_ms: getSessionDuration(),
       page_duration_ms: getPageDuration(),
+      // 地理信息（异步缓存，页面加载后可立即使用）
+      geo_country: geoCache.country || '',
+      geo_region: geoCache.region || '',
+      geo_city: geoCache.city || '',
+      geo_isp: geoCache.isp || '',
       // 事件数据
       event_data: eventData || {}
     };
@@ -200,10 +249,10 @@ const SDK_SOURCE = `/**
   // 工具交互追踪 - 增强版
   function trackToolInteraction(toolName, action, data) {
     var now = Date.now();
+    // 基础事件载荷
     var eventPayload = { 
       tool_name: toolName, 
       action: action,
-      // 计算工具使用时长
       duration_ms: 0,
       duration_seconds: 0
     };
@@ -221,8 +270,9 @@ const SDK_SOURCE = `/**
       delete toolStartTimes[toolName];
     }
     
-    // 添加步骤进度
-    if (data) {
+    // 合并 data 中的所有业务字段到事件载荷（关键修复！）
+    if (data && typeof data === 'object') {
+      // 添加步骤进度
       if (data.completedSteps !== undefined || data.totalSteps !== undefined) {
         eventPayload.completed_steps = data.completedSteps || 0;
         eventPayload.total_steps = data.totalSteps || 1;
@@ -236,6 +286,15 @@ const SDK_SOURCE = `/**
       if (action === 'complete') {
         eventPayload.is_completed = true;
       }
+      // 关键：将 data 中的所有其他字段都合并到 eventPayload 中
+      // 这样后端就能收到 hs_code, origin, destination 等业务字段
+      Object.keys(data).forEach(function(key) {
+        // 跳过已处理的字段，避免覆盖
+        if (key !== 'completedSteps' && key !== 'totalSteps' && 
+            key !== 'is_abandoned' && key !== 'is_completed') {
+          eventPayload[key] = data[key];
+        }
+      });
     }
     
     send('tool_interaction', eventPayload);
@@ -293,54 +352,57 @@ const SDK_SOURCE = `/**
   function initAutoTracking() {
     if (autoTracked || typeof window === 'undefined') return;
     autoTracked = true;
-    
+
     // 重置页面开始时间
     pageStartTime = Date.now();
-    
-    // 页面浏览追踪
-    trackPageView();
-    
+
+    // 等待地理信息获取后再发送初始页面浏览事件（与旧版嵌入代码行为一致）
+    getGeoInfo().then(function(info) {
+      geoCache = info;
+      trackPageView();
+    });
+
     // 页面离开事件 - 记录完整页面停留时间
     global.addEventListener('beforeunload', function() {
       var duration = Math.round((Date.now() - pageStartTime) / 1000);
-      send('page_leave', { 
+      send('page_leave', {
         duration_seconds: duration,
         duration_ms: Date.now() - pageStartTime,
         page_path: window.location.pathname,
         is_bounce: sessionStartTime === pageStartTime // 如果会话开始时间等于页面开始时间，则为跳出
       });
     });
-    
+
     // 滚动深度追踪
     var maxScroll = 0, trackedMilestones = {};
     global.addEventListener('scroll', function() {
       var scrollPercent = Math.round((window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100);
       if (scrollPercent > maxScroll) maxScroll = scrollPercent;
-      [25, 50, 75, 100].forEach(function(m) { 
-        if (maxScroll >= m && !trackedMilestones[m]) { 
-          trackScroll(m); 
-          trackedMilestones[m] = true; 
-        } 
+      [25, 50, 75, 100].forEach(function(m) {
+        if (maxScroll >= m && !trackedMilestones[m]) {
+          trackScroll(m);
+          trackedMilestones[m] = true;
+        }
       });
     }, { passive: true });
-    
+
     // 点击追踪
-    document.addEventListener('click', function(e) { 
-      var target = e.target || e.srcElement, trackData = target && target.getAttribute && target.getAttribute('data-track'); 
-      if (trackData) { 
-        try { var data = JSON.parse(trackData); trackClick(data.label || (target.textContent || ''), data.category, data); } 
-        catch { trackClick(target.textContent || ''); } 
-      } 
+    document.addEventListener('click', function(e) {
+      var target = e.target || e.srcElement, trackData = target && target.getAttribute && target.getAttribute('data-track');
+      if (trackData) {
+        try { var data = JSON.parse(trackData); trackClick(data.label || (target.textContent || ''), data.category, data); }
+        catch { trackClick(target.textContent || ''); }
+      }
     });
-    
+
     // 表单提交追踪
-    document.addEventListener('submit', function(e) { 
-      var form = e.target || e.srcElement; 
-      if (form && form.tagName === 'FORM') { 
-        var formName = form.name || form.id || 'anonymous', formData = new FormData(form), fields = {}; 
-        formData.forEach(function(value, key) { fields[key] = value; }); 
-        setTimeout(function() { trackFormSubmit(formName, true, fields); }, 500); 
-      } 
+    document.addEventListener('submit', function(e) {
+      var form = e.target || e.srcElement;
+      if (form && form.tagName === 'FORM') {
+        var formName = form.name || form.id || 'anonymous', formData = new FormData(form), fields = {};
+        formData.forEach(function(value, key) { fields[key] = value; });
+        setTimeout(function() { trackFormSubmit(formName, true, fields); }, 500);
+      }
     });
   }
   
@@ -352,6 +414,8 @@ const SDK_SOURCE = `/**
     config.debug = options.debug || false;
     getVisitorId();
     getSessionId();
+    // 启动异步地理信息采集（不阻塞后续初始化流程）
+    initGeoInfo();
     if (options.autoTrack !== false) {
       if (document.readyState === 'complete') initAutoTracking();
       else global.addEventListener('load', initAutoTracking);

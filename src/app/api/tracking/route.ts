@@ -14,6 +14,7 @@ import {
   insertChatMessage,
   sql,
 } from '@/lib/db'
+import { insertPrismaticEvent, upsertSession, insertPageEvent } from '@/lib/db/prismatic'
 import { resolveTenantSlug } from '@/lib/tenant-resolve'
 
 // Mock 租户数据（当数据库未配置时使用）
@@ -24,7 +25,7 @@ const mockTenants: Record<string, string> = {
   global2china: 'tenant_005',
   africa: 'tenant_006',
   globaltrade: 'tenant_007',
-  prismatic: 'tenant_008',
+  prismatic: 'tenant_prismatic',
 }
 
 // 自动注册缺失的租户（如果数据库中没有该 slug，自动创建一条记录）
@@ -39,10 +40,10 @@ async function ensureTenantExists(slug: string): Promise<string | null> {
     const inserted = await sql`
       INSERT INTO public.tenants (name, slug, domain, settings)
       VALUES (
-        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug === 'globaltrade' ? 'TradeRoot 全球贸易导航' : slug === 'prismatic' ? 'Prismatic 认知蒸馏平台' : slug},
+        ${slug === 'global2china' ? 'Global2China 全球优品' : slug === 'africa' ? 'AfricaZero 非洲零关税' : slug === 'globaltrade' ? 'TradeRoot 全球贸易导航' : slug === 'prismatic' ? 'Prismatic 折射之光' : slug},
         ${slug},
-        ${slug === 'prismatic' ? 'prismatic-app.vercel.app' : slug + '.vercel.app'},
-        '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'
+        ${slug + '.vercel.app'},
+        ${slug === 'prismatic' ? '{"features": {"prismaticAnalytics": true, "personaTracking": true, "aiMetrics": true}}' : '{"features": {"userProfile": true, "inquiry": true, "analytics": true, "tools": true}}'}
       )
       ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug
       RETURNING id
@@ -55,8 +56,54 @@ async function ensureTenantExists(slug: string): Promise<string | null> {
   }
 }
 
+// 服务端 IP 地理解析（兜底：当 SDK 端采集失败时使用）
+async function resolveGeoFromIP(request: NextRequest): Promise<{ country: string; region: string; city: string; isp: string }> {
+  // 优先取 x-forwarded-for 第一个 IP（经过 CDN/Vercel Edge 后是真实访客 IP）
+  const forwarded = request.headers.get('x-forwarded-for') || ''
+  const realIp = forwarded.split(',')[0].trim() ||
+                 request.headers.get('x-real-ip') || ''
+  if (!realIp) return { country: '', region: '', city: '', isp: '' }
+
+  try {
+    // 优先用 ipapi.co（支持 IP 参数，无需服务端发出请求）
+    const res = await fetch(`https://ipapi.co/${realIp}/json/`, {
+      next: { revalidate: 3600 } // CDN 缓存 1 小时，同一 IP 不重复请求
+    })
+    if (res.ok) {
+      const data = await res.json() as any
+      if (data && (data.country_name || data.country)) {
+        return {
+          country: data.country_name || data.country || '',
+          region: data.region || '',
+          city: data.city || '',
+          isp: data.org || '',
+        }
+      }
+    }
+    // 备选：ipwho.is
+    const res2 = await fetch(`https://ipwho.is/${realIp}`, {
+      next: { revalidate: 3600 }
+    })
+    if (res2.ok) {
+      const data2 = await res2.json() as any
+      if (data2 && data2.country) {
+        return {
+          country: data2.country || '',
+          region: data2.region || '',
+          city: data2.city || '',
+          isp: data2.connection ? (data2.connection.isp || '') : '',
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[Tracking] IP geolocation failed:', e)
+  }
+  return { country: '', region: '', city: '', isp: '' }
+}
+
 // 允许的跨域来源列表（追踪 SDK 可能从这些域名加载）
 const ALLOWED_ORIGINS = [
+  'https://global-trade.zxqconsulting.com',
   'https://africa.zxqconsulting.com',
   'https://global2china.zxqconsulting.com',
   'https://zero.zxqconsulting.com',
@@ -65,7 +112,7 @@ const ALLOWED_ORIGINS = [
   'https://global-trade.vercel.app',
   'https://traderoot.vercel.app',
   'https://prismatic-app.vercel.app',
-  'https://www.prismatic.ai',
+  'https://prismatic.zxqconsulting.com',
 ]
 
 // 获取动态 CORS origin（根据请求来源动态设置，避免 * 通配符与 credentials 冲突）
@@ -130,6 +177,20 @@ export async function POST(request: NextRequest) {
       event_data,
     } = body
 
+    // 如果 geo 字段为空，则从服务端 IP 解析（兜底方案，解决浏览器端请求被拦截的问题）
+    const finalGeoCountry = geo_country || ''
+    const finalGeoRegion = geo_region || ''
+    const finalGeoCity = geo_city || ''
+    const finalGeoIsp = geo_isp || ''
+    let serverGeoCountry = '', serverGeoRegion = '', serverGeoCity = '', serverGeoIsp = ''
+    if (!finalGeoCountry) {
+      const serverGeo = await resolveGeoFromIP(request)
+      serverGeoCountry = serverGeo.country
+      serverGeoRegion = serverGeo.region
+      serverGeoCity = serverGeo.city
+      serverGeoIsp = serverGeo.isp
+    }
+
     // 使用 tenant_slug 或 tenant；import-website 与 global2china 合并为 canonical slug
     const rawTenantSlug = tenant_slug || tenant
     const actualTenantSlug = resolveTenantSlug(rawTenantSlug) ?? rawTenantSlug
@@ -166,29 +227,33 @@ export async function POST(request: NextRequest) {
     }
 
     if (isDbConfigured) {
-      // 存储追踪事件
-      await insertTrackingEvent({
-        tenant_id: tenantId,
-        event_type,
-        session_id,
-        visitor_id,
-        website_url,
-        page_url: actualPageUrl,
-        page_title,
-        referrer,
-        user_agent,
-        device_type,
-        browser,
-        os,
-        screen_resolution,
-        language,
-        traffic_source,
-        geo_country,
-        geo_region,
-        geo_city,
-        geo_isp,
-        event_data,
-      })
+        // 存储追踪事件（优先使用 SDK 上报的 geo，空则用服务端 IP 解析兜底）
+        const storedCountry = finalGeoCountry || serverGeoCountry
+        const storedRegion = finalGeoRegion || serverGeoRegion
+        const storedCity = finalGeoCity || serverGeoCity
+        const storedIsp = finalGeoIsp || serverGeoIsp
+        await insertTrackingEvent({
+          tenant_id: tenantId,
+          event_type,
+          session_id,
+          visitor_id,
+          website_url,
+          page_url: actualPageUrl,
+          page_title,
+          referrer,
+          user_agent,
+          device_type,
+          browser,
+          os,
+          screen_resolution,
+          language,
+          traffic_source,
+          geo_country: storedCountry,
+          geo_region: storedRegion,
+          geo_city: storedCity,
+          geo_isp: storedIsp,
+          event_data,
+        })
 
       // 根据事件类型处理不同的业务逻辑
       switch (event_type) {
@@ -255,6 +320,27 @@ export async function POST(request: NextRequest) {
 
         case 'custom':
           // 自定义事件，可以根据 event_data 中的 event_name 进一步处理
+          break
+
+        // ==================== Prismatic 蒸馏人物事件 ====================
+        case 'persona_view':
+        case 'model_expand':
+        case 'graph_node_click':
+        case 'chat_start':
+        case 'chat_message':
+        case 'mode_switch':
+        case 'first_visit':
+        case 'returning_visit':
+        case 'session_start':
+        case 'session_end':
+        case 'heartbeat':
+          if (event_data) {
+            try {
+              await handlePrismaticEvent(tenantId, event_type, event_data as Record<string, unknown>, visitor_id, session_id)
+            } catch (e) {
+              console.error('handlePrismaticEvent error:', e)
+            }
+          }
           break
 
         default:
@@ -572,6 +658,97 @@ async function handleModuleUsage(
 }
 
 // 处理用户偏好更新
+// 处理 Prismatic 蒸馏人物事件
+async function handlePrismaticEvent(
+  tenantId: string,
+  eventType: string,
+  eventData: Record<string, unknown>,
+  visitorId?: string,
+  sessionId?: string
+) {
+  const {
+    persona_id,
+    persona_name,
+    domain,
+    model_id,
+    model_name,
+    node_type,
+    node_id,
+    node_label,
+    from_persona_id,
+    mode,
+    turn,
+    ai_latency_ms,
+    model_used,
+    confidence_score,
+    from_mode,
+    to_mode,
+    page_path,
+    url_query,
+    scroll_depth,
+    duration_seconds,
+    first_visit_time,
+    session_duration_ms,
+    page_count,
+  } = eventData
+
+  const prismaticData = {
+    tenant_id: tenantId,
+    session_id: sessionId ?? undefined,
+    visitor_id: visitorId ?? undefined,
+    persona_id: persona_id ? String(persona_id) : undefined,
+    persona_name: persona_name ? String(persona_name) : undefined,
+    domain: domain ? String(domain) : undefined,
+    event_type: eventType,
+    event_data: eventData,
+    ai_latency_ms: ai_latency_ms ? Number(ai_latency_ms) : undefined,
+    model_used: model_used ? String(model_used) : undefined,
+    confidence_score: confidence_score ? parseFloat(String(confidence_score)) : undefined,
+    conversation_turn: turn ? Number(turn) : undefined,
+    mode: mode ? String(mode) : undefined,
+  }
+
+  await insertPrismaticEvent(prismaticData)
+
+  // 同时更新 sessions 表（会话管理）
+  if (eventType === 'session_start' && sessionId && visitorId) {
+    await upsertSession({
+      tenant_id: tenantId,
+      session_id: sessionId,
+      visitor_id: visitorId,
+      device_type: eventData.device_type ? String(eventData.device_type) : undefined,
+      country: eventData.country ? String(eventData.country) : undefined,
+    })
+  }
+
+  // page_events 表记录（页面事件）
+  if (['pageview', 'page_leave', 'scroll', 'click', 'heartbeat', 'session_end'].includes(eventType)) {
+    await insertPageEvent({
+      tenant_id: tenantId,
+      session_id: sessionId ?? '',
+      visitor_id: visitorId ?? '',
+      event_type: eventType,
+      url_path: page_path ? String(page_path) : undefined,
+      url_query: url_query ? String(url_query) : undefined,
+      event_data: eventData,
+      session_duration_ms: session_duration_ms ? Number(session_duration_ms) : undefined,
+      is_first_visit: eventType === 'first_visit',
+      is_returning_visit: eventType === 'returning_visit',
+      first_visit_time: first_visit_time ? String(first_visit_time) : undefined,
+      timezone: eventData.timezone ? String(eventData.timezone) : undefined,
+      traffic_source: eventData.traffic_source ? String(eventData.traffic_source) : undefined,
+      hostname: eventData.hostname ? String(eventData.hostname) : undefined,
+      browser: eventData.browser ? String(eventData.browser) : undefined,
+      os: eventData.os ? String(eventData.os) : undefined,
+      device_type: eventData.device_type ? String(eventData.device_type) : undefined,
+      country: eventData.country ? String(eventData.country) : undefined,
+      subdivision1: eventData.subdivision1 ? String(eventData.subdivision1) : undefined,
+      city: eventData.city ? String(eventData.city) : undefined,
+      referrer_domain: eventData.referrer_domain ? String(eventData.referrer_domain) : undefined,
+    })
+  }
+}
+
 async function handleUserPreference(
   tenantId: string,
   eventData: Record<string, unknown>,

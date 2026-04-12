@@ -44,6 +44,8 @@ const TENANT_URLS: Record<string, string> = {
   'global2china': 'https://global2china.zxqconsulting.com',
   'africa': 'https://africa.zxqconsulting.com',
   'starloom': 'https://starloom.vercel.app',
+  'globaltrade': 'https://global-trade.zxqconsulting.com',
+  'prismatic': 'https://prismatic-app.vercel.app',
 }
 
 // 多彩统计卡片配置

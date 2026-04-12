@@ -7,7 +7,7 @@
 'use client'
 
 import { useState, useEffect, createContext, useContext, useCallback } from 'react'
-import { Layout, Menu, Avatar, Dropdown, Button, Space, ConfigProvider, theme, Input, AutoComplete, Spin } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Button, Space, ConfigProvider, theme, Input, AutoComplete, Spin, Drawer } from 'antd'
 import {
   DashboardOutlined,
   UserOutlined,
@@ -26,6 +26,7 @@ import {
   MoonOutlined,
   SearchOutlined,
   FileTextOutlined,
+  BarsOutlined,
 } from '@ant-design/icons'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -34,6 +35,9 @@ import AIAssistant from './AIAssistant'
 
 const { Header, Sider, Content } = Layout
 const { defaultAlgorithm, darkAlgorithm } = theme
+
+// 响应式断点
+const MOBILE_BREAKPOINT = 768
 
 // 主题上下文
 type ThemeMode = 'light' | 'dark'
@@ -319,11 +323,31 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 // 内部布局内容组件
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileCollapsed, setMobileCollapsed] = useState(true) // 移动端抽屉状态
+  const [isMobile, setIsMobile] = useState(false)
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [tenantsLoading, setTenantsLoading] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { mode } = useContext(ThemeContext)
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // 移动端自动折叠
+  useEffect(() => {
+    if (isMobile) {
+      setCollapsed(true)
+      setMobileCollapsed(true)
+    }
+  }, [isMobile])
 
   // 从 URL 获取当前租户
   const currentTenantSlug = searchParams.get('tenant')
@@ -438,6 +462,38 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
       icon: <SettingOutlined />,
       label: <Link href={`/admin/settings?tenant=${currentTenantSlug || 'zxqconsulting'}`}>系统设置</Link>,
     },
+    {
+      key: 'prismatic-group',
+      type: 'group' as const,
+      label: 'Prismatic Analytics',
+      children: [
+        {
+          key: '/admin/prismatic',
+          icon: <AppstoreOutlined />,
+          label: <Link href={`/admin/prismatic?tenant=${currentTenantSlug || 'prismatic'}`}>总览</Link>,
+        },
+        {
+          key: '/admin/prismatic/personas',
+          icon: <BarChartOutlined />,
+          label: <Link href={`/admin/prismatic/personas?tenant=${currentTenantSlug || 'prismatic'}`}>人物热度</Link>,
+        },
+        {
+          key: '/admin/prismatic/funnel',
+          icon: <FundOutlined />,
+          label: <Link href={`/admin/prismatic/funnel?tenant=${currentTenantSlug || 'prismatic'}`}>转化漏斗</Link>,
+        },
+        {
+          key: '/admin/prismatic/content',
+          icon: <BarChartOutlined />,
+          label: <Link href={`/admin/prismatic/content?tenant=${currentTenantSlug || 'prismatic'}`}>内容健康度</Link>,
+        },
+        {
+          key: '/admin/prismatic/users',
+          icon: <TeamOutlined />,
+          label: <Link href={`/admin/prismatic/users?tenant=${currentTenantSlug || 'prismatic'}`}>访客画像</Link>,
+        },
+      ],
+    },
   ]
 
   const userMenuItems = [
@@ -474,39 +530,13 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        style={{
-          background: isDark 
-            ? 'linear-gradient(180deg, #111827 0%, #1f2937 100%)'
-            : 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)',
-          boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
-        }}
-      >
-        <div
-          style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
-          {collapsed ? (
-            <span style={{ 
-              color: '#fff', 
-              fontSize: 22, 
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>ZT</span>
-          ) : (
-            <span style={{ 
-              color: '#fff', 
-              fontSize: 15, 
+      {/* 移动端：使用 Drawer 抽屉式侧边栏 */}
+      {isMobile ? (
+        <Drawer
+          title={
+            <span style={{
+              color: '#fff',
+              fontSize: 15,
               fontWeight: 600,
               letterSpacing: '0.5px',
             }}>
@@ -516,24 +546,102 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                 WebkitTextFillColor: 'transparent',
               }}>数据</span>管理系统
             </span>
-          )}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          defaultSelectedKeys={['/admin/dashboard']}
-          items={menuItems}
-          style={{
-            background: 'transparent',
-            borderRight: 0,
-            marginTop: 8,
+          }
+          placement="left"
+          onClose={() => setMobileCollapsed(true)}
+          open={!mobileCollapsed}
+          width={280}
+          styles={{
+            header: {
+              background: isDark
+                ? 'linear-gradient(180deg, #111827 0%, #1f2937 100%)'
+                : 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+            },
+            body: {
+              background: isDark
+                ? 'linear-gradient(180deg, #111827 0%, #1f2937 100%)'
+                : 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)',
+              padding: 0,
+            },
           }}
-        />
-      </Sider>
+          closable={false}
+        >
+          <Menu
+            theme="dark"
+            mode="inline"
+            defaultSelectedKeys={['/admin/dashboard']}
+            items={menuItems}
+            style={{
+              background: 'transparent',
+              borderRight: 0,
+            }}
+            onClick={() => setMobileCollapsed(true)}
+          />
+        </Drawer>
+      ) : (
+        // 桌面端：常规侧边栏
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          style={{
+            background: isDark
+              ? 'linear-gradient(180deg, #111827 0%, #1f2937 100%)'
+              : 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)',
+            boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+          }}
+        >
+          <div
+            style={{
+              height: 64,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            {collapsed ? (
+              <span style={{
+                color: '#fff',
+                fontSize: 22,
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>ZT</span>
+            ) : (
+              <span style={{
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 600,
+                letterSpacing: '0.5px',
+              }}>
+                <span style={{
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}>数据</span>管理系统
+              </span>
+            )}
+          </div>
+          <Menu
+            theme="dark"
+            mode="inline"
+            defaultSelectedKeys={['/admin/dashboard']}
+            items={menuItems}
+            style={{
+              background: 'transparent',
+              borderRight: 0,
+              marginTop: 8,
+            }}
+          />
+        </Sider>
+      )}
       <Layout>
         <Header
           style={{
-            padding: '0 24px',
+            padding: '0 16px',
             background: headerBg,
             display: 'flex',
             alignItems: 'center',
@@ -543,58 +651,99 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
             transition: 'all 0.3s',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ 
-                fontSize: 16,
-                color: textSecondary,
-              }}
-            />
-            <span style={{ 
-              color: textSecondary, 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* 移动端：汉堡菜单按钮 */}
+            {isMobile ? (
+              <Button
+                type="text"
+                icon={<BarsOutlined />}
+                onClick={() => setMobileCollapsed(false)}
+                style={{
+                  fontSize: 18,
+                  color: textSecondary,
+                }}
+              />
+            ) : (
+              <Button
+                type="text"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed(!collapsed)}
+                style={{
+                  fontSize: 16,
+                  color: textSecondary,
+                }}
+              />
+            )}
+            <span style={{
+              color: textSecondary,
               fontSize: 14,
               paddingLeft: 8,
               borderLeft: `2px solid ${isDark ? '#3730a3' : '#e2e8f0'}`,
+              display: isMobile ? 'none' : 'block', // 移动端隐藏站点名称
             }}>
               {selectedTenant?.name || '选择站点'}
             </span>
           </div>
-          <Space>
-            {/* 全局搜索 */}
-            <GlobalSearch tenantSlug={currentTenantSlug} />
+          <Space size={isMobile ? 'small' : 'middle'}>
+            {/* 移动端：隐藏搜索 */}
+            {!isMobile && <GlobalSearch tenantSlug={currentTenantSlug} />}
             {/* 主题切换 */}
             <ThemeToggle />
-            {/* 租户切换 */}
-            <Dropdown
-              menu={{
-                items: tenants.map(t => ({
-                  key: t.slug,
-                  icon: <GlobalOutlined />,
-                  label: t.name,
-                })),
-                onClick: ({ key }) => {
-                  const currentPath = window.location.pathname
-                  const url = new URL(currentPath, window.location.origin)
-                  url.searchParams.set('tenant', key)
-                  router.push(url.toString())
-                },
-              }}
-              disabled={tenantsLoading || tenants.length === 0}
-            >
-              <Button 
-                icon={<GlobalOutlined />} 
-                loading={tenantsLoading}
-                style={{
-                  borderColor: isDark ? '#3730a3' : '#6366f1',
-                  color: isDark ? '#818cf8' : '#6366f1',
+            {/* 租户切换 - 移动端显示为图标 */}
+            {isMobile ? (
+              <Dropdown
+                menu={{
+                  items: tenants.map(t => ({
+                    key: t.slug,
+                    icon: <GlobalOutlined />,
+                    label: t.name,
+                  })),
+                  onClick: ({ key }) => {
+                    const currentPath = window.location.pathname
+                    const url = new URL(currentPath, window.location.origin)
+                    url.searchParams.set('tenant', key)
+                    router.push(url.toString())
+                  },
                 }}
+                disabled={tenantsLoading || tenants.length === 0}
               >
-                {tenantsLoading ? '加载中...' : (selectedTenant?.name || (tenants.length === 0 ? '暂无站点' : '选择站点'))}
-              </Button>
-            </Dropdown>
+                <Button
+                  type="text"
+                  icon={<GlobalOutlined />}
+                  style={{
+                    color: isDark ? '#818cf8' : '#6366f1',
+                  }}
+                />
+              </Dropdown>
+            ) : (
+              <Dropdown
+                menu={{
+                  items: tenants.map(t => ({
+                    key: t.slug,
+                    icon: <GlobalOutlined />,
+                    label: t.name,
+                  })),
+                  onClick: ({ key }) => {
+                    const currentPath = window.location.pathname
+                    const url = new URL(currentPath, window.location.origin)
+                    url.searchParams.set('tenant', key)
+                    router.push(url.toString())
+                  },
+                }}
+                disabled={tenantsLoading || tenants.length === 0}
+              >
+                <Button
+                  icon={<GlobalOutlined />}
+                  loading={tenantsLoading}
+                  style={{
+                    borderColor: isDark ? '#3730a3' : '#6366f1',
+                    color: isDark ? '#818cf8' : '#6366f1',
+                  }}
+                >
+                  {tenantsLoading ? '加载中...' : (selectedTenant?.name || (tenants.length === 0 ? '暂无站点' : '选择站点'))}
+                </Button>
+              </Dropdown>
+            )}
             {/* 用户菜单 */}
             <Dropdown
               menu={{
@@ -607,23 +756,21 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
                 },
               }}
             >
-              <Space style={{ cursor: 'pointer', color: textPrimary }}>
-                <Avatar 
-                  style={{ 
-                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-                  }}
-                >
-                  A
-                </Avatar>
-                <span style={{ fontWeight: 500 }}>管理员</span>
-              </Space>
+              <Avatar
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  cursor: 'pointer',
+                }}
+              >
+                A
+              </Avatar>
             </Dropdown>
           </Space>
         </Header>
         <Content
           style={{
-            margin: 24,
-            padding: 24,
+            margin: isMobile ? 8 : 24,
+            padding: isMobile ? 12 : 24,
             background: contentBg,
             borderRadius: 12,
             minHeight: 280,
