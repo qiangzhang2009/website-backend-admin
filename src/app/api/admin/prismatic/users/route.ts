@@ -15,8 +15,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await fetch(
-      `${PRISMATIC_API_BASE}/api/analytics/users?days=${days}&limit=${limit}`,
-      { next: { revalidate: 30 } }
+      `${PRISMATIC_API_BASE}/api/analytics/users?days=${days}&limit=${limit}`
     )
 
     if (!res.ok) {

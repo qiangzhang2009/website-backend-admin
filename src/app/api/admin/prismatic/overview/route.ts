@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const res = await fetch(`${PRISMATIC_API_BASE}/api/analytics/overview?days=${days}`, {
-      next: { revalidate: 30 }, // Cache 30 seconds
+      // Note: Vercel serverless fetch does not support `next: { revalidate }`
+      // The parent API route itself is edge-cached by Vercel if configured
     })
 
     if (!res.ok) {
