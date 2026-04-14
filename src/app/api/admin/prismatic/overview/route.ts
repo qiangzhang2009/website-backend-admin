@@ -6,16 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-const PRISMATIC_API_BASE = 'https://prismatic.zxqconsulting.com'
+const PRISMATIC_API_BASE = 'https://prismatic-app.vercel.app'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const days = parseInt(searchParams.get('days') || '7', 10)
 
   try {
-    const res = await fetch(`${PRISMATIC_API_BASE}/api/analytics/overview?days=${days}`, {
-      // Note: Vercel serverless fetch does not support `next: { revalidate }`
-      // The parent API route itself is edge-cached by Vercel if configured
+    // Fix: correct endpoint path from /api/analytics/overview to /api/admin/prismatic/overview
+    const res = await fetch(`${PRISMATIC_API_BASE}/api/admin/prismatic/overview?days=${days}`, {
     })
 
     if (!res.ok) {
