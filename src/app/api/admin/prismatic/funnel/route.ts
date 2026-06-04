@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-const PRISMATIC_API_BASE = 'https://prismatic.zxqconsulting.com'
+const PRISMATIC_API_BASE = 'https://prismatic-app.vercel.app'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)

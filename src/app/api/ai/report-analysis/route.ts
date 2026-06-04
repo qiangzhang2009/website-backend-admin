@@ -6,7 +6,7 @@
 export const runtime = 'edge'
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions'
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-0c0f36c54b80440b892fc68a308cba7b'
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
 
 export async function POST(request: Request) {
   const corsHeaders = {
@@ -29,6 +29,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { reportData, tenantSlug } = body
+
+    if (!DEEPSEEK_API_KEY) {
+      return new Response(JSON.stringify({ error: 'AI service not configured. Please set DEEPSEEK_API_KEY environment variable.' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      })
+    }
 
     if (!reportData) {
       return new Response(JSON.stringify({ error: 'Missing report data' }), {
