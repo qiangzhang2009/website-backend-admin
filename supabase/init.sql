@@ -223,43 +223,60 @@ ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tracking_events ENABLE ROW LEVEL SECURITY;
 
--- 租户只能看到自己的数据
+-- ============================================================
+-- 租户数据访问控制策略
+-- 注意：由于本系统使用 Neon PostgreSQL 直连（服务级凭证），
+-- RLS 策略主要用于文档目的和安全纵深防御。
+-- 主要访问控制通过 API 路由层的 tenant_id 参数实现。
+-- 如果未来迁移到 Supabase 客户端，请确保正确配置 auth.uid() 或应用上下文。
+-- ============================================================
+
+-- tenants: 允许所有操作（管理员可见所有租户）
 CREATE POLICY "tenants_select" ON public.tenants FOR SELECT USING (true);
 CREATE POLICY "tenants_insert" ON public.tenants FOR INSERT WITH CHECK (true);
 CREATE POLICY "tenants_update" ON public.tenants FOR UPDATE USING (true);
 CREATE POLICY "tenants_delete" ON public.tenants FOR DELETE USING (true);
 
-CREATE POLICY "users_select" ON public.users FOR SELECT USING (tenant_id = (SELECT id FROM tenants LIMIT 1));
+-- users: 修复 — 与其他表一致，SELECT 也允许（实际过滤在 API 层）
+CREATE POLICY "users_select" ON public.users FOR SELECT USING (true);
 CREATE POLICY "users_insert" ON public.users FOR INSERT WITH CHECK (true);
 CREATE POLICY "users_update" ON public.users FOR UPDATE USING (true);
 CREATE POLICY "users_delete" ON public.users FOR DELETE USING (true);
 
+-- visits: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "visits_select" ON public.visits FOR SELECT USING (true);
 CREATE POLICY "visits_insert" ON public.visits FOR INSERT WITH CHECK (true);
 
+-- page_views: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "page_views_select" ON public.page_views FOR SELECT USING (true);
 CREATE POLICY "page_views_insert" ON public.page_views FOR INSERT WITH CHECK (true);
 
+-- tool_interactions: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "tool_interactions_select" ON public.tool_interactions FOR SELECT USING (true);
 CREATE POLICY "tool_interactions_insert" ON public.tool_interactions FOR INSERT WITH CHECK (true);
 
+-- inquiries: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "inquiries_select" ON public.inquiries FOR SELECT USING (true);
 CREATE POLICY "inquiries_insert" ON public.inquiries FOR INSERT WITH CHECK (true);
 CREATE POLICY "inquiries_update" ON public.inquiries FOR UPDATE USING (true);
 CREATE POLICY "inquiries_delete" ON public.inquiries FOR DELETE USING (true);
 
+-- follow_ups: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "follow_ups_select" ON public.follow_ups FOR SELECT USING (true);
 CREATE POLICY "follow_ups_insert" ON public.follow_ups FOR INSERT WITH CHECK (true);
 
+-- tags: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "tags_select" ON public.tags FOR SELECT USING (true);
 CREATE POLICY "tags_insert" ON public.tags FOR INSERT WITH CHECK (true);
 CREATE POLICY "tags_update" ON public.tags FOR UPDATE USING (true);
 CREATE POLICY "tags_delete" ON public.tags FOR DELETE USING (true);
 
+-- user_tags: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "user_tags_select" ON public.user_tags FOR SELECT USING (true);
 CREATE POLICY "user_tags_insert" ON public.user_tags FOR INSERT WITH CHECK (true);
 CREATE POLICY "user_tags_delete" ON public.user_tags FOR DELETE USING (true);
 
+-- tracking_events: 允许所有操作（实际过滤在 API 层）
 CREATE POLICY "tracking_events_select" ON public.tracking_events FOR SELECT USING (true);
 CREATE POLICY "tracking_events_insert" ON public.tracking_events FOR INSERT WITH CHECK (true);
 

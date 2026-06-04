@@ -1,11 +1,16 @@
 /**
- * ZxqTrack SDK 源码
- * 追踪SDK — 用于嵌入到客户网站收集访问和用户行为数据
+ * ZxqTrack SDK v2 — 追踪SDK
  *
- * 此文件已从 tracking/route.ts 中拆分出来，便于独立维护和版本管理
+ * 用于嵌入到客户网站收集访问和用户行为数据
+ *
+ * v2 Changes from v1:
+ * - 统一使用 zxq_visitor_id 作为访客标识
+ * - 添加 page_view 事件数据（time_on_page, scroll_depth）
+ * - 添加 heartbeat 心跳机制保持会话活跃
+ * - 修复 tool_complete/abandon 步骤追踪
  */
 
-export const SDK_VERSION = '1.0.0'
+export const SDK_VERSION = '2.0.0'
 
 export interface DeviceInfo {
   deviceType: string
@@ -116,22 +121,41 @@ function getGeoInfo(): Promise<GeoInfo> {
   })
 }
 
+function generateId(): string {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+}
+
 export function createZxqTrack(tenantSlug: string, trackingUrl: string): Record<string, unknown> {
-  const visitorId = localStorage.getItem('zt_visitor_id') || `visitor_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
-  if (!localStorage.getItem('zt_visitor_id')) localStorage.setItem('zt_visitor_id', visitorId)
+  // v2: 统一使用 zxq_visitor_id，消除 SDK v1 遗留的 zt_visitor_id 漂移
+  let visitorId = localStorage.getItem('zxq_visitor_id')
+  if (!visitorId) {
+    // 迁移：如果存在旧 ID，迁移到新 ID
+    const oldId = localStorage.getItem('zt_visitor_id')
+    visitorId = oldId || `visitor_${generateId()}`
+    localStorage.setItem('zxq_visitor_id', visitorId)
+    // 清除旧键
+    if (oldId) localStorage.removeItem('zt_visitor_id')
+  }
 
-  const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+  const sessionId = `session_${generateId()}`
   const deviceInfo = getDeviceInfo()
-  const geoInfoPromise = getGeoInfo()
-  let geoInfo: GeoInfo = { country: '', region: '', city: '', isp: '' }
 
-  geoInfoPromise.then(info => { geoInfo = info })
+  // 地理信息异步获取
+  let geoInfo: GeoInfo = { country: '', region: '', city: '', isp: '' }
+  getGeoInfo().then(info => { geoInfo = info })
+
+  // 会话活跃状态
+  let sessionStartTime = Date.now()
+  let isSessionActive = true
+  let maxScrollDepth = 0
+  let timeOnPage = 0
+  let pageLoadTime = 0
 
   const buildData = (eventType: string, eventData?: Record<string, unknown>): TrackingData => ({
     event_type: eventType,
     tenant_slug: tenantSlug,
     session_id: sessionId,
-    visitor_id: visitorId,
+    visitor_id: visitorId!,
     timestamp: new Date().toISOString(),
     website_url: window.location.origin,
     page_url: window.location.href,
@@ -162,27 +186,38 @@ export function createZxqTrack(tenantSlug: string, trackingUrl: string): Record<
     }
   }
 
-  let currentModule: string | null = null
-  let conversationTurns = 0
-  const pageStartTime = Date.now()
-
-  window.addEventListener('beforeunload', () => {
-    track('page_leave', { duration_seconds: Math.round((Date.now() - pageStartTime) / 1000), page_path: window.location.pathname })
-  })
-
-  let maxScroll = 0
+  // === 滚动追踪 ===
   window.addEventListener('scroll', () => {
     const scrollPercent = Math.round((window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100)
-    if (scrollPercent > maxScroll) maxScroll = scrollPercent
+    if (scrollPercent > maxScrollDepth) maxScrollDepth = scrollPercent
   })
+
+  // === 页面活跃心跳：每 30 秒上报一次，保持会话数据完整 ===
   setInterval(() => {
-    if (maxScroll > 0) {
-      track('scroll', { scroll_depth: maxScroll, page_path: window.location.pathname })
-      maxScroll = 0
+    if (isSessionActive) {
+      timeOnPage = Math.round((Date.now() - sessionStartTime) / 1000)
+      track('heartbeat', {
+        session_duration_ms: Date.now() - sessionStartTime,
+        time_on_page_seconds: timeOnPage,
+        scroll_depth: maxScrollDepth,
+        page_path: window.location.pathname,
+      })
     }
   }, 30000)
 
-  // 自动表单追踪
+  // === 滚动上报：每 30 秒 ===
+  setInterval(() => {
+    if (maxScrollDepth > 0) {
+      track('scroll', {
+        scroll_depth: maxScrollDepth,
+        page_path: window.location.pathname,
+        scroll_duration_ms: Date.now() - sessionStartTime,
+      })
+      maxScrollDepth = 0
+    }
+  }, 30000)
+
+  // === 表单追踪 ===
   document.addEventListener('submit', (e) => {
     const form = e.target as HTMLFormElement
     if (form.tagName !== 'FORM') return
@@ -193,6 +228,7 @@ export function createZxqTrack(tenantSlug: string, trackingUrl: string): Record<
     setTimeout(() => track('form_submit', { form_name: formName, fields, submit_result: 'success' }), 500)
   })
 
+  // === 点击追踪（data-track 属性）===
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
     const dataAttr = target.getAttribute('data-track')
@@ -205,55 +241,127 @@ export function createZxqTrack(tenantSlug: string, trackingUrl: string): Record<
     }
   })
 
+  // === 页面可见性变化（用户切换标签页）===
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      timeOnPage = Math.round((Date.now() - sessionStartTime) / 1000)
+      track('page_leave', {
+        duration_seconds: timeOnPage,
+        page_path: window.location.pathname,
+        scroll_depth: maxScrollDepth,
+        visibility_state: 'hidden',
+      })
+    } else if (document.visibilityState === 'visible') {
+      // 用户切回页面，重置计时
+      sessionStartTime = Date.now()
+      pageLoadTime = 0
+    }
+  })
+
+  // === 页面离开（beforeunload）===
+  window.addEventListener('beforeunload', () => {
+    if (!isSessionActive) return
+    timeOnPage = Math.round((Date.now() - sessionStartTime) / 1000)
+    track('page_leave', {
+      duration_seconds: timeOnPage,
+      page_path: window.location.pathname,
+      scroll_depth: maxScrollDepth,
+      visibility_state: 'unload',
+    })
+    isSessionActive = false
+  })
+
   return {
+    // 通用追踪
     track: (eventType: string, eventData?: Record<string, unknown>) => track(eventType, eventData),
-    pageView: (pageData?: Record<string, unknown>) => track('page_view', pageData || {}),
-    tool: (toolName: string, action: string, params?: Record<string, unknown>) => track('tool_interaction', { tool_name: toolName, action, ...params }),
-    toolStart: (toolName: string, params?: Record<string, unknown>) => {
-      currentModule = toolName; conversationTurns = 0
-      track('tool_start', { module_id: toolName, module_name: toolName, ...params })
-    },
-    toolInput: (toolName: string, inputParams: Record<string, unknown>) => track('tool_input', { module_id: toolName, input_params: inputParams }),
-    toolOutput: (toolName: string, outputResult: Record<string, unknown>, duration?: number) => track('tool_output', { module_id: toolName, output_result: outputResult, duration_ms: duration }),
-    toolComplete: (toolName: string, result: Record<string, unknown>, duration?: number, steps?: number) => {
-      track('tool_complete', { module_id: toolName, output_result: result, duration_ms: duration, completed_steps: steps })
-      currentModule = null
-    },
-    toolAbandon: (toolName: string, completedSteps?: number, totalSteps?: number) => {
-      track('tool_abandon', { module_id: toolName, completed_steps: completedSteps, total_steps: totalSteps })
-      currentModule = null
-    },
-    form: (formName: string, fields: Record<string, unknown>, result: string) => track('form_submit', { form_name: formName, fields, submit_result: result }),
-    chat: (module: string, userMsg: string, aiMsg: string, action: string) => {
-      if (action === 'start') {
-        currentModule = module; conversationTurns = 1
-        track('chat_start', { module, user_message: userMsg })
-      } else if (action === 'response') {
-        conversationTurns++
-        track('chat_message', { module, user_message: userMsg, ai_message: aiMsg, action, conversation_turns: conversationTurns })
-      }
-    },
-    chatEnd: (module: string, duration?: number, messageCount?: number) => {
-      track('chat_end', { module, duration_seconds: duration, message_count: messageCount })
-      currentModule = null
-    },
-    profile: (profileData: Record<string, unknown>, action: string) => {
-      track(`profile_${action || 'create'}`, {
-        profile_id: profileData.profile_id || 'default',
-        profile_type: profileData.profile_type || 'default',
-        name: profileData.name,
-        avatar: profileData.avatar,
-        birthday: profileData.birthday,
-        birth_time: profileData.birth_time,
-        gender: profileData.gender,
-        profile_data: profileData.profile_data || {},
-        completeness: profileData.completeness || 0,
+
+    // 页面浏览（v2: 携带丰富 event_data）
+    pageView: (pageData?: Record<string, unknown>) => {
+      pageLoadTime = Date.now()
+      track('page_view', {
+        viewport_width: window.innerWidth,
+        viewport_height: window.innerHeight,
+        screen_width: window.screen.width,
+        screen_height: window.screen.height,
+        time_on_page_seconds: 0,
+        scroll_depth: 0,
+        is_first_pageview: pageLoadTime - sessionStartTime < 1000,
+        ...pageData,
       })
     },
+
+    // 工具追踪（v2: 步骤信息写入 event_data）
+    tool: (toolName: string, action: string, params?: Record<string, unknown>) => track('tool_interaction', { tool_name: toolName, action, ...params }),
+
+    toolStart: (toolName: string, params?: Record<string, unknown>) => {
+      track('tool_start', { module_id: toolName, module_name: toolName, completed_steps: 0, total_steps: null, ...params })
+    },
+
+    toolInput: (toolName: string, inputParams: Record<string, unknown>) => track('tool_input', { module_id: toolName, input_params: inputParams }),
+
+    toolOutput: (toolName: string, outputResult: Record<string, unknown>, duration?: number) => track('tool_output', { module_id: toolName, output_result: outputResult, duration_ms: duration }),
+
+    // v2: toolComplete 和 toolAbandon 现在正确传递 completed_steps 和 total_steps
+    toolComplete: (toolName: string, result: Record<string, unknown>, duration?: number, completedSteps?: number, totalSteps?: number) => {
+      track('tool_complete', {
+        module_id: toolName,
+        output_result: result,
+        duration_ms: duration,
+        completed_steps: completedSteps ?? null,
+        total_steps: totalSteps ?? null,
+      })
+    },
+
+    toolAbandon: (toolName: string, completedSteps?: number, totalSteps?: number) => {
+      track('tool_abandon', {
+        module_id: toolName,
+        completed_steps: completedSteps ?? null,
+        total_steps: totalSteps ?? null,
+      })
+    },
+
+    // 表单
+    form: (formName: string, fields: Record<string, unknown>, result: string) => track('form_submit', { form_name: formName, fields, submit_result: result }),
+
+    // Chat
+    chat: (module: string, userMsg: string, aiMsg: string, action: string) => {
+      if (action === 'start') {
+        track('chat_start', { module, user_message: userMsg })
+      } else if (action === 'response') {
+        track('chat_message', { module, user_message: userMsg, ai_message: aiMsg, action })
+      }
+    },
+
+    chatEnd: (module: string, duration?: number, messageCount?: number) => track('chat_end', { module, duration_seconds: duration, message_count: messageCount }),
+
+    // 画像
+    profile: (profileData: Record<string, unknown>, action: string) => track(`profile_${action || 'create'}`, {
+      profile_id: profileData.profile_id || 'default',
+      profile_type: profileData.profile_type || 'default',
+      name: profileData.name,
+      avatar: profileData.avatar,
+      birthday: profileData.birthday,
+      birth_time: profileData.birth_time,
+      gender: profileData.gender,
+      profile_data: profileData.profile_data || {},
+      completeness: profileData.completeness || 0,
+    }),
+
+    // 模块
     moduleSelect: (moduleId: string, moduleName: string) => track('module_select', { module_id: moduleId, module_name: moduleName }),
     moduleSwitch: (fromModule: string, toModule: string) => track('module_switch', { from_module: fromModule, to_module: toModule }),
+
+    // 偏好
     preference: (key: string, value: string) => track('preference_update', { preference_key: key, preference_value: value }),
+
+    // 生命周期
     lifecycle: (stage: string, data?: Record<string, unknown>) => track(`lifecycle_${stage}`, data || {}),
+
+    // 自定义事件
     custom: (eventName: string, data?: Record<string, unknown>) => track('custom', { event_name: eventName, ...data }),
+
+    // 获取当前访客 ID（用于外部调用）
+    getVisitorId: () => visitorId,
+    getSessionId: () => sessionId,
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeCountryName, normalizeCityName } from '../src/lib/geo-normalize'
-import { COUNTRY_MAPPING, CITY_MAPPING, TIME, PAGINATION } from '../src/lib/constants'
+import { COUNTRY_MAPPING, TIME, PAGINATION } from '../src/lib/constants'
 
 describe('geo-normalize', () => {
   describe('normalizeCountryName', () => {

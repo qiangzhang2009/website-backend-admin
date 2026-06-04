@@ -3,7 +3,7 @@
  * 支持蒸馏人物追踪数据的查询
  */
 
-import { sql, isDbConfigured } from './index'
+import { sql } from './index'
 
 // ==================== 类型定义 ====================
 
@@ -87,6 +87,7 @@ export async function getPrismaticOverview(
     totalEventsResult,
     personasResult,
     conversationsResult,
+    avgDurationResult,
   ] = await Promise.all([
     sql`SELECT COUNT(DISTINCT visitor_id)::int as count
         FROM public.page_events
@@ -121,6 +122,18 @@ export async function getPrismaticOverview(
         WHERE tenant_id = ${tenantId}
           AND event_type = 'chat_start'
           AND created_at > ${sql.unsafe(since)}`,
+    sql`SELECT COALESCE(
+          ROUND(
+            AVG(session_duration_ms)::numeric / 1000,
+            1
+          ),
+          0
+        )::float as avg_duration_seconds
+        FROM public.page_events
+        WHERE tenant_id = ${tenantId}
+          AND created_at > ${sql.unsafe(since)}
+          AND session_duration_ms IS NOT NULL
+          AND session_duration_ms > 0`,
   ])
 
   const dau = dauResult[0]?.count ?? 0
@@ -132,7 +145,7 @@ export async function getPrismaticOverview(
     wau: wauResult[0]?.count ?? 0,
     mau: totalVisitors,
     sessions: sessionsResult[0]?.count ?? 0,
-    avgSessionDuration: 0,
+    avgSessionDuration: parseFloat(String(avgDurationResult[0]?.avg_duration_seconds ?? 0)),
     totalEvents: totalEventsResult[0]?.count ?? 0,
     totalPersonas: personasResult[0]?.count ?? 0,
     totalConversations: conversations,
@@ -242,13 +255,17 @@ export async function getPrismaticFunnel(
   ])
 
   const total = totalVisitors[0]?.count || 1
+  const personaCount = personaViews[0]?.count || 0
+  const chatCount = chatStarts[0]?.count || 0
+  const modelCount = modelExpands[0]?.count || 0
+  const graphCount = graphClicks[0]?.count || 0
 
   return [
     { name: '入口页浏览', count: totalVisitors[0]?.count || 0, rate: 100 },
-    { name: '人物浏览', count: personaViews[0]?.count || 0, rate: total > 0 ? Math.round((personaViews[0]?.count || 0) / total * 100) : 0 },
-    { name: '对话开始', count: chatStarts[0]?.count || 0, rate: total > 0 ? Math.round((chatStarts[0]?.count || 0) / total * 100) : 0 },
-    { name: '思维模型展开', count: modelExpands[0]?.count || 0, rate: total > 0 ? Math.round((modelExpands[0]?.count || 0) / total * 100) : 0 },
-    { name: '图谱探索', count: graphClicks[0]?.count || 0, rate: total > 0 ? Math.round((graphClicks[0]?.count || 0) / total * 100) : 0 },
+    { name: '人物浏览', count: personaCount, rate: total > 0 ? Math.round((personaCount / total) * 100) : 0 },
+    { name: '对话开始', count: chatCount, rate: personaCount > 0 ? Math.round((chatCount / personaCount) * 100) : 0 },
+    { name: '思维模型展开', count: modelCount, rate: chatCount > 0 ? Math.round((modelCount / chatCount) * 100) : 0 },
+    { name: '图谱探索', count: graphCount, rate: modelCount > 0 ? Math.round((graphCount / modelCount) * 100) : 0 },
   ]
 }
 
