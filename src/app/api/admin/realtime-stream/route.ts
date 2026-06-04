@@ -20,8 +20,8 @@ export const runtime = 'edge'
 const COUNTRY_MAPPING: Record<string, string> = {
   'china': '中国', 'cn': '中国', '中国': '中国',
   'japan': '日本', 'jp': '日本', '日本': '日本',
-  'usa': '美国', 'us': '美国', 'united states': '中国',
-  'united kingdom': '英国', 'uk': '英国', 'uk': '英国',
+  'usa': '美国', 'us': '美国', 'united states': '美国',
+  'united kingdom': '英国', 'uk': '英国',
   'germany': '德国', 'de': '德国',
   'france': '法国', 'fr': '法国',
   'korea': '韩国', 'kr': '韩国',
